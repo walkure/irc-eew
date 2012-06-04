@@ -13,6 +13,9 @@ WNIのパスワードをべた書きするのが嫌だったらmd5化してpasswd-md5に書けばそれを使う
 
 受信EEW情報を保存するエントリ「logdir:」行をコメントアウトすると、ログを保存しなくなります。
 
+EEW電文はCPANモジュールEarthquake::EEW::Decoderを使ってデコードしています。
+CPANにあるモジュールより、https://github.com/Magistol/EEWDecoderの方が新しいようです。
+*このコードではこれを使っています。
 
 3.ちぅい
 WNIのサービスは有料(\315/month)。あと、何か時々第一報が届かないことがある。
