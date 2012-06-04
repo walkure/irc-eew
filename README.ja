@@ -31,3 +31,12 @@ walkure at kmc.gr.jp
 
 5.ライセンス
 MIT License
+
+6.参考
+-Weathernews(The last 10 seconds)
+ http://weathernews.jp/quake/html/urgentquake.html
+-EEW電文フォーマット(非公式)
+ http://eew.mizar.jp/excodeformat
+-EEW Decoder(受信部を書くときに参考にしました)
+ https://github.com/skubota/EEW-decorder
+
