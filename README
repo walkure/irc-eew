@@ -1,0 +1,32 @@
+irc-eew // EEW-IRC bot
+
+1.About
+Receive EEW(Earthquake Early Warning) from Weathernews(WNI)'s paid service via TCP
+and Post to IRC channels.
+
+2.How to use
+-Write your configucation at config.yaml about WNI EEW and your IRC server/channel.
+-Start this script.
+
+*No flood control while posting messages to IRC server.
+
+3.Dependencies
+
+-Earthquake::EEW::Decoder
+ https://github.com/Magistol/EEWDecoder
+
+4.FYI
+*Written in Japanese only
+
+-Weathernews
+ http://weathernews.jp/quake/html/urgentquake.html
+-EEW Message Code format(Un-official)
+ http://eew.mizar.jp/excodeformat
+-EEW Decoder(receiver sample)
+ https://github.com/skubota/EEW-decorder
+
+5.Author
+ walkure at kmc.gr.jp
+
+6.License
+ MIT License

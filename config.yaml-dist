@@ -1,0 +1,22 @@
+#if commentout not save EEW log data
+logdir: ./eewlog
+irc:
+#charset
+ charset: iso-2022-jp
+#channel,post all EEW messages
+ all-notice: "#all,#whole,#news:*.jp"
+#channel,post first EEW meesage only.
+ limited-notice: "#limited,#sukoshi"
+ server:
+  host: irc.example.jp
+  port: 6667
+#  password: hoge
+  nick: EEWNotice
+  name: EEWBot
+  desc: Emergency Earthquake Warning
+
+WNIEEW:
+ user: username
+ passwd: bar
+# if you don't want to write plain-password, set md5_hex(your password);
+# passwd-md5: md5hashedpassword
