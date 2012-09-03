@@ -1,7 +1,7 @@
 package IRCSock;
 
 # IRCSock.pm
-# walkure at kmc.gr.jp
+# walkure at 3pf.jp
 
 use strict;
 use warnings;
