@@ -2,7 +2,7 @@
 
 # irc-eew.pl
 # charset = euc-jp
-# walkure at kmc.gr.jp
+# walkure at 3pf.jp
 
 use strict;
 use warnings;
@@ -75,7 +75,7 @@ while(1){
 		if($len){
 			$sock->parse_body($buf);
 		}else{
-			#ÀÜÂ³¤¬ÀÚ¤ì¤¿
+			#ï¿½ï¿½Â³ï¿½ï¿½ï¿½Ú¤ì¤¿
 			print "++Connection closed...\n";
 			$select->remove($sock);
 			$sock->close();
@@ -117,17 +117,17 @@ sub eew_callback
 	my $warnmsg = "20$wd[0]/$wd[1]/$wd[2] $wd[3]:$wd[4]:$wd[5]";
 	my $eqedmsg = "20$ed[0]/$ed[1]/$wd[2] $ed[3]:$ed[4]:$ed[5]";
 
-	my $times = ' Âè'.$d->{'warn_num'}.'Êó';
-	$times .= '(ºÇ½ª)' if $d->{NCN_type} > 0;
+	my $times = ' ï¿½ï¿½'.$d->{'warn_num'}.'ï¿½ï¿½';
+	$times .= '(ï¿½Ç½ï¿½)' if $d->{NCN_type} > 0;
 
 	my $msg;
 
 	if($d->{'msg_type_code'} == 10){
-		$msg = $warnmsg.$times.' ('.$eqedmsg.'È¯À¸) ¼è¤ê¾Ã¤µ¤ì¤Þ¤·¤¿';
+		$msg = $warnmsg.$times.' ('.$eqedmsg.'È¯ï¿½ï¿½) ï¿½ï¿½ï¿½ï¿½ï¿½Ã¤ï¿½ï¿½ï¿½ï¿½Þ¤ï¿½ï¿½ï¿½';
 	}else{
-		my $center = sprintf('¿Ì±û:N%.01f/E%0.01f(%s)¿¼¤µ%dkm',$d->{'center_lat'},$d->{'center_lng'},$d->{'center_name'},$d->{'center_depth'});
-		my $magnitude = sprintf(' ºÇÂç:M%.01f ¿ÌÅÙ%s',$d->{'magnitude'},$d->{'shindo'});
-		$msg = $warnmsg.$times.' ('.$eqedmsg.'È¯À¸)'.$center.$magnitude;
+		my $center = sprintf('ï¿½Ì±ï¿½:N%.01f/E%0.01f(%s)ï¿½ï¿½ï¿½ï¿½%dkm',$d->{'center_lat'},$d->{'center_lng'},$d->{'center_name'},$d->{'center_depth'});
+		my $magnitude = sprintf(' ï¿½ï¿½ï¿½ï¿½:M%.01f ï¿½ï¿½ï¿½ï¿½%s',$d->{'magnitude'},$d->{'shindo'});
+		$msg = $warnmsg.$times.' ('.$eqedmsg.'È¯ï¿½ï¿½)'.$center.$magnitude;
 	}	
 	
 	my @notice_ch = keys %channel_noticeall;
