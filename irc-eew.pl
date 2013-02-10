@@ -4,15 +4,19 @@
 # charset = euc-jp
 # walkure at 3pf.jp
 
+use utf8;
 use strict;
 use warnings;
 use IO::Select;
 use YAML::Syck;
 use Encode;
+
 use Earthquake::EEW::Decoder;
 
 use IRCSock;
 use EEWSock;
+
+binmode STDOUT,':utf8';
 
 my $path = $ARGV[0] || 'config.yaml';
 
@@ -75,7 +79,7 @@ while(1){
 		if($len){
 			$sock->parse_body($buf);
 		}else{
-			#��³���ڤ줿
+			#connection closed
 			print "++Connection closed...\n";
 			$select->remove($sock);
 			$sock->close();
@@ -110,28 +114,28 @@ sub eew_callback
 	}
 	
 	my $d = $eewdec->read_data($buffer);
-	conv_charset($d);
 
 	my @wd = $d->{warn_time} =~ /\d\d/og;
 	my @ed = $d->{eq_time}   =~ /\d\d/og;
 	my $warnmsg = "20$wd[0]/$wd[1]/$wd[2] $wd[3]:$wd[4]:$wd[5]";
 	my $eqedmsg = "20$ed[0]/$ed[1]/$wd[2] $ed[3]:$ed[4]:$ed[5]";
 
-	my $times = ' ��'.$d->{'warn_num'}.'��';
-	$times .= '(�ǽ�)' if $d->{NCN_type} > 0;
+	my $times = ' 第'.$d->{'warn_num'}.'報';
+	$times .= '(最終)' if $d->{NCN_type} > 0;
 
 	my $msg;
 
 	if($d->{'msg_type_code'} == 10){
-		$msg = $warnmsg.$times.' ('.$eqedmsg.'ȯ��) �����ä����ޤ���';
+		$msg = $warnmsg.$times.' ('.$eqedmsg.'発生) 取り消されました';
 	}else{
-		my $center = sprintf('�̱�:N%.01f/E%0.01f(%s)����%dkm',$d->{'center_lat'},$d->{'center_lng'},$d->{'center_name'},$d->{'center_depth'});
-		my $magnitude = sprintf(' ����:M%.01f ����%s',$d->{'magnitude'},$d->{'shindo'});
-		$msg = $warnmsg.$times.' ('.$eqedmsg.'ȯ��)'.$center.$magnitude;
+		my $center = sprintf('震央:N%.01f/E%0.01f(%s)深さ%dkm',$d->{'center_lat'},$d->{'center_lng'},$d->{'center_name'},$d->{'center_depth'});
+		my $magnitude = sprintf(' 最大:M%.01f 震度%s',$d->{'magnitude'},$d->{'shindo'});
+		$msg = $warnmsg.$times.' ('.$eqedmsg.'発生)'.$center.$magnitude;
 	}	
 	
 	my @notice_ch = keys %channel_noticeall;
 #	push(@notice_ch,keys %channel_noticelimited) if($d->{'warn_num'} > 900 ||  $d->{'warn_num'} == 1 || $d->{'msg_type_code'} == 10 );
+
 	if($d->{eq_id} ne $last_eq_id || $d->{msg_type_code} == 10){
 		$last_eq_id = $d->{eq_id};
 		push(@notice_ch,keys %channel_noticelimited);
@@ -140,7 +144,6 @@ sub eew_callback
 	print "+++>>[$msg]\n";
 	foreach my $ch (@notice_ch){
 		print "++Noticed [$ch]\n";
-		Encode::from_to($msg,'euc-jp',$yaml->{irc}{charset});
 		$ircsock->notice($ch,$msg);
 	}
 
@@ -150,13 +153,5 @@ sub eew_callback
 		rename "$eewlog/$tmpfname" , "$eewlog/$newname";
 	}
 	
-}
-
-sub conv_charset
-{
-        my $d = shift;
-        foreach my $key(keys %$d){
-                $d->{$key} = Encode::encode('euc-jp',$d->{$key});
-        }
 }
 

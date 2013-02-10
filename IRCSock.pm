@@ -5,6 +5,7 @@ package IRCSock;
 
 use strict;
 use warnings;
+use Encode;
 
 use base qw/IO::Socket::INET/;
 #use Data::Dumper;
@@ -17,6 +18,7 @@ sub configure
 	my $params = $args->{PeerAddr};
 	$args->{PeerAddr} = $params->{host}.':'.$params->{port};
 	*$self->{buffer} = '';
+	*$self->{charset} = $params->{charset} || 'jis';
 
 	*$self->{handlers} = {
 		'001'		=> \&do_connected, #connected
@@ -90,6 +92,8 @@ sub parse_line
 {
 	my($self,$line) = @_;
 	
+	$line = Encode::decode(*$self->{charset},$line);
+
 	my $frag_index = index($line,' :');
 	my $message = substr($line,1,$frag_index) ;
 	my $fragment = substr($line,$frag_index+2) ;
@@ -135,12 +139,16 @@ sub do_connected
 sub privmsg
 {
 	my($self,$target,$message) = @_;
+
+	$message = Encode::encode(*$self->{charset},$message);
 	print $self "PRIVMSG $target :$message\n";
 }
 
 sub notice
 {
 	my($self,$target,$message) = @_;
+
+	$message = Encode::encode(*$self->{charset},$message);
 	print $self "NOTICE $target :$message\n";
 }
 
