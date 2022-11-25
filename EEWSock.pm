@@ -9,7 +9,7 @@ use base qw/IO::Socket::INET/;
 
 use Encode;
 use Data::Dumper;
-use LWP::UserAgent;
+use HTTP::Tiny;
 use HTTP::Headers;
 use DateTime;
 use Digest::MD5 qw(md5_hex);
@@ -53,17 +53,15 @@ sub get_server_list
 		return *$self->{server_list};
 	}
 	
-	my $ua = LWP::UserAgent->new;
-	$ua->agent('FastCaster/1.0 powered by weathernews.');
+	my $ua = HTTP::Tiny->new(agent => 'FastCaster/1.0 powered by weathernews.');
 	my @server;
 	
-	my $req = HTTP::Request->new( GET => 'http://lst10s-sp.wni.co.jp/server_list.txt' );
-	my $res = $ua->request($req);
-	if ( $res->is_success ) {
-		@server = split /[\r\n]+/, $res->content;
+	my $res = $ua->get('http://lst10s-sp.wni.co.jp/server_list.txt');
+	if ( $res->{success}) {
+		@server = split /[\r\n]+/, $res->{content};
 	}
 	else {
-	    die 'Cannot get server list:' . $res->status_line . "\n";
+	    die "Cannot get server list: $res->{status} $res->{reason} \n";
 	}
 	print 'Retrieved '.scalar @server." servers\n";
 	
