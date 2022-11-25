@@ -90,7 +90,7 @@ sub send_ack
 	print $self $response->as_string;
 	print $self "\n";
 
-#	print "Send Request(Timeout) Waiting...\n";
+	print scalar localtime." Send Request(Timeout) Waiting...\n";
 	$self->flush();
 }
 
@@ -120,7 +120,7 @@ sub logon
 	print $self "\n";
 	
 	$self->flush();
-	print "Send Request waiting...\n";
+	print scalar localtime." Send Request waiting...\n";
 }
 
 sub parse_body
@@ -158,7 +158,7 @@ sub parse_body
 				}elsif($id eq 'Response'){
 					print 'Auth Status:'.*$self->{header}{'X-WNI-Result'}."\n";
 				}elsif($id eq 'Keep-Alive'){
-#					print "Keep-Alive...\n";
+					print scalar localtime." Keep-Alive...\n";
 				}else{
 					print "STATE:[$id]\n";
 				}
