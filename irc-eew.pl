@@ -1,7 +1,7 @@
 #!/usr/bin/env perl
 
 # irc-eew.pl
-# charset = euc-jp
+# charset = utf-8
 # walkure at 3pf.jp
 
 use utf8;
