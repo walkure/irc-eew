@@ -20,6 +20,9 @@ use SlackWebhookSock;
 
 binmode STDOUT,':utf8';
 
+$SIG{'TERM'} = sub {die "SIGTERMed\n";};
+$SIG{'INT'} = sub {die "SIGINTed\n";};
+
 my $path = $ARGV[0] || 'config.yaml';
 
 print "++Loading YAML:$path\n";
