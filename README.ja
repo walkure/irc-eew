@@ -1,12 +1,14 @@
-irc-eew // EEW IRC bot.
+irc-eew // EEW IRC/Slack bot.
 
 1.なにこれ
 Weathernews(WNI)の緊急地震速報(http://weathernews.jp/quake/html/urgentquake.html)を受信して
-IRCへ流す為の単純な何か。
+IRC/Slackへ流す為の単純な何か。
 
 2.使い方
 config.yaml-distを適当に書き換えて、config.yamlにすれば引数指定しなくても読みに行くよ。
 limited-noticeは第一報と最終報を通知します。all-noticeは全部投げる。
+
+Slackへのincoming-webhookによる通知も`all`と`limited`の2つがあります。
 
 WNIのパスワードをべた書きするのが嫌だったらmd5化してpasswd-md5に書けばそれを使うよ。
 この時、passwdエントリは無視します。

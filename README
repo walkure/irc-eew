@@ -1,11 +1,11 @@
-irc-eew // EEW-IRC bot
+irc-eew // EEW-IRC/Slack bot
 
 1.About
 Receive EEW(Earthquake Early Warning) from Weathernews(WNI)'s paid service via TCP
-and Post to IRC channels.
+and Post to IRC/Slack channels.
 
 2.How to use
--Write your configucation at config.yaml about WNI EEW and your IRC server/channel.
+-Write your configucation at config.yaml about WNI EEW and your IRC server/channel or Your Slack incoming-webhooks.
 -Start this script.
 
 *No flood control while posting messages to IRC server.

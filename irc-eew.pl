@@ -16,6 +16,7 @@ use Earthquake::EEW::Decoder;
 
 use IRCSock;
 use EEWSock;
+use SlackWebhookSock;
 
 binmode STDOUT,':utf8';
 
@@ -47,30 +48,37 @@ my $eewdec = Earthquake::EEW::Decoder->new();
 $select->add($eewsock);
 $eewsock->logon($yaml->{WNIEEW});
 
-my $ircsock = IRCSock->new($yaml->{irc}{server});
-$select->add($ircsock);
+my (@join_ch,%channel_noticeall,%channel_noticelimited,$ircsock);
 
-my (@join_ch,%channel_noticeall,%channel_noticelimited);
-
-if(defined $yaml->{irc}{'all-notice'}){
-	foreach my $ch(split(/,/,$yaml->{irc}{'all-notice'})){
-		unless(defined $channel_noticeall{$ch} && defined $channel_noticelimited{$ch}){
-			push(@join_ch,$ch);
-			$channel_noticeall{$ch} = 1;
+if(defined $yaml->{irc}){
+	$ircsock = IRCSock->new($yaml->{irc}{server});
+	$select->add($ircsock);
+	if(defined $yaml->{irc}{'all-notice'}){
+		foreach my $ch(split(/,/,$yaml->{irc}{'all-notice'})){
+			unless(defined $channel_noticeall{$ch} && defined $channel_noticelimited{$ch}){
+				push(@join_ch,$ch);
+				$channel_noticeall{$ch} = 1;
+			}
 		}
 	}
-}
 
-if(defined $yaml->{irc}{'limited-notice'}){
-	foreach my $ch(split(/,/,$yaml->{irc}{'limited-notice'})){
-		unless(defined $channel_noticeall{$ch} && defined $channel_noticelimited{$ch}){
-			push(@join_ch,$ch);
-			$channel_noticelimited{$ch} = 1;
+	if(defined $yaml->{irc}{'limited-notice'}){
+		foreach my $ch(split(/,/,$yaml->{irc}{'limited-notice'})){
+			unless(defined $channel_noticeall{$ch} && defined $channel_noticelimited{$ch}){
+				push(@join_ch,$ch);
+				$channel_noticelimited{$ch} = 1;
+			}
 		}
 	}
+
+	$ircsock->login(\@join_ch);
 }
 
-$ircsock->login(\@join_ch);
+my (@all_hooks,@limited_hooks);
+if(defined $yaml->{slack}){
+	push(@all_hooks,@{$yaml->{slack}{all}});
+	push(@limited_hooks,@{$yaml->{slack}{limited}});
+}
 
 while(1){
 	foreach my $sock($select->can_read(undef)){
@@ -94,6 +102,9 @@ while(1){
 				$ircsock = IRCSock->new($yaml->{irc});
 				$select->add($ircsock);
 				$ircsock->login();
+			}elsif(ref($sock) eq 'SlackWebhookSock'){
+				my $res = $sock->get_response();
+				print $sock->name.":[".$res->message."]\n";
 			}
 		}
 	}
@@ -129,7 +140,9 @@ sub eew_callback
 	if($d->{'msg_type_code'} == 10){
 		$msg = $warnmsg.$times.' ('.$eqedmsg.'発生) 取り消されました';
 	}else{
-		my $center = sprintf('震央:N%.01f/E%0.01f(%s)深さ%dkm',$d->{'center_lat'},$d->{'center_lng'},$d->{'center_name'},$d->{'center_depth'});
+
+		my $mapuri = sprintf 'http://maps.google.com/maps?q=%0.01f,%0.01f', $d->{'center_lat'},$d->{'center_lng'};
+		my $center = sprintf('震央:<%s|N%.01f/E%0.01f>(%s)深さ%dkm',$mapuri,$d->{'center_lat'},$d->{'center_lng'},$d->{'center_name'},$d->{'center_depth'});
 		my $magnitude = sprintf(' 最大:M%.01f 震度%s',$d->{'magnitude'},$d->{'shindo'});
 		$msg = $warnmsg.$times.' ('.$eqedmsg.'発生)'.$center.$magnitude;
 	}	
@@ -137,15 +150,37 @@ sub eew_callback
 	my @notice_ch = keys %channel_noticeall;
 #	push(@notice_ch,keys %channel_noticelimited) if($d->{'warn_num'} > 900 ||  $d->{'warn_num'} == 1 || $d->{'msg_type_code'} == 10 );
 
-	if($d->{eq_id} ne $last_eq_id || $d->{msg_type_code} == 10){
+	my @notice_hook = @all_hooks;
+
+	if($d->{eq_id} ne $last_eq_id || $d->{msg_type_code} == 10 || $d->{NCN_type} > 0){
 		$last_eq_id = $d->{eq_id};
 		push(@notice_ch,keys %channel_noticelimited);
+		push(@notice_hook,@limited_hooks);
+	}
+	
+	my sub remove_link {
+		my $body = shift;
+		$body =~ s/\<(.*?)\|(.*?)\>/$2/g;
+		$body;
 	}
 
 	print "+++>>[$msg]\n";
-	foreach my $ch (@notice_ch){
-		print "++Noticed [$ch]\n";
-		$ircsock->notice($ch,$msg);
+	if(defined $ircsock){
+		foreach my $ch (@notice_ch){
+			print "++Noticed [$ch]\n";
+			$ircsock->notice($ch, remove_link($msg));
+		}
+	}
+	
+	if(defined $yaml->{slack}){
+		foreach my $endpoint (@notice_hook){
+			my $webhsock = SlackWebhookSock->new($endpoint);
+			next unless defined $webhsock;
+			print '++Noticed ['.$webhsock->name."]\n";
+			$webhsock->send_json({"text"=> $msg});
+			$select->add($webhsock);
+		}
+		
 	}
 
 	if(defined $eewlog && -e "$eewlog/$tmpfname"){

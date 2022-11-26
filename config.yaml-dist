@@ -15,6 +15,15 @@ irc:
   name: EEWBot
   desc: Emergency Earthquake Warning
 
+slack:
+ all:
+  - a: https://www.example.com/api/webhook
+  - https://www.example.org/api/webhook
+  - hoge: https://www.example.org/api/webhook
+ limited:
+  - p: https://www.example.net/api/webhook
+  - https://www.example.jp/api/webhook
+
 WNIEEW:
  user: username
  passwd: bar
