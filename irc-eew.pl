@@ -147,7 +147,7 @@ sub eew_callback
 		$ircsock->notice($ch,$msg);
 	}
 
-	if(-e "$eewlog/$tmpfname"){
+	if(defined $eewlog && -e "$eewlog/$tmpfname"){
 		my $newname = $d->{eq_id}.'.'.$d->{warn_num};
 		print "++Rename [$tmpfname] -> [$newname]\n";
 		rename "$eewlog/$tmpfname" , "$eewlog/$newname";
