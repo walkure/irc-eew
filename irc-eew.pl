@@ -8,7 +8,7 @@ use utf8;
 use strict;
 use warnings;
 use IO::Select;
-use YAML::Syck;
+use YAML;
 use Encode;
 
 use lib '.','./lib';
@@ -23,7 +23,7 @@ binmode STDOUT,':utf8';
 my $path = $ARGV[0] || 'config.yaml';
 
 print "++Loading YAML:$path\n";
-my $yaml = YAML::Syck::LoadFile($path);
+my $yaml = YAML::LoadFile($path);
 
 my $eewlog = $yaml->{logdir};
 
