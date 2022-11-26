@@ -72,12 +72,17 @@ sub get_server_list
 	}
 }
 
+sub wni_timestamp
+{
+	my $dt = DateTime->now;
+	$dt->strftime('%Y/%m/%d %H:%M:%S.%6N');
+}
+
 sub send_ack
 {
 	my $self = shift;
 	
-	my $dt = DateTime->now;
-	my $now = $dt->strftime('%Y/%m/%d %H:%M:%S.%6N');
+	my $now = wni_timestamp();
 	my $response = HTTP::Headers->new(
 		'Content-Type' => 'application/fast-cast',
 		'Server' => 'FastCaster/1.0.0 (Unix)',
@@ -100,8 +105,7 @@ sub logon
 	
 	my $hash = defined $conf->{'passwd-md5'} ? $conf->{'passwd-md5'} : md5_hex($conf->{passwd});
 
-	my $dt = DateTime->now;
-	my $now = $dt->strftime('%Y/%m/%d %H:%M:%S.%6N');
+	my $now = wni_timestamp();
 	my $request = HTTP::Headers->new(
 		'User-Agent' => 'FastCaster/1.0 powered by weathernews.',
 		'Accept' => '*/*',
