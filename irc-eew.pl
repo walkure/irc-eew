@@ -11,6 +11,7 @@ use IO::Select;
 use YAML::Syck;
 use Encode;
 
+use lib '.','./lib';
 use Earthquake::EEW::Decoder;
 
 use IRCSock;
