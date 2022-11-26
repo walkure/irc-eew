@@ -8,10 +8,10 @@ use warnings;
 use base qw/IO::Socket::INET/;
 
 use Encode;
-use Data::Dumper;
+use Time::Piece;
+use Time::HiRes;
 use HTTP::Tiny;
 use HTTP::Headers;
-use DateTime;
 use Digest::MD5 qw(md5_hex);
 
 sub configure
@@ -74,8 +74,8 @@ sub get_server_list
 
 sub wni_timestamp
 {
-	my $dt = DateTime->now;
-	$dt->strftime('%Y/%m/%d %H:%M:%S.%6N');
+	my ($seconds,$microseconds) = Time::HiRes::gettimeofday;
+	sprintf '%s.%06d', localtime($seconds)->strftime('%Y/%m/%d %H:%M:%S'), $microseconds;
 }
 
 sub send_ack
