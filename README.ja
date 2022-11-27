@@ -19,6 +19,10 @@ EEW電文はCPANモジュールEarthquake::EEW::Decoderを使ってデコード�
 CPANにあるモジュールより、https://github.com/Magistol/EEWDecoderの方が新しいようです。
 *このコードではこれを使っています。
 
+コンテナで動かす場合は以下のような感じで：
+
+`docker run -it --rm  --mount type=bind,source=/usr/local/irc-eew/config,target=/conf,readonly ghcr.io/walkure/irc-eew:1.0.0`
+
 3.ちぅい
 WNIのサービスは有料(\315/month)。あと、何か時々第一報が届かないことがある。
 通知先のチャンネル大量にするとIRCサーバの設定如何ではFloodで蹴られるかも。現時点では
