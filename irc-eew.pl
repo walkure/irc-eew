@@ -83,6 +83,8 @@ if(defined $yaml->{slack}){
 	push(@limited_hooks,@{$yaml->{slack}{limited}});
 }
 
+my $last_eq_id = '';
+
 while(1){
 	foreach my $sock($select->can_read(undef)){
 		my $buf;
@@ -113,7 +115,6 @@ while(1){
 	}
 }
 
-my $last_eq_id = '';
 sub eew_callback
 {
 	my($self,$md5,$buffer) = @_;
