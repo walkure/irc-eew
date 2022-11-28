@@ -43,7 +43,11 @@ my $eewsock;
 
 do{
 	print "++Connect WNIEEW Server\n";
-	$eewsock = EEWSock->new(ServerList=>$serv_list,Callback=>\&eew_callback);
+	$eewsock = EEWSock->new(
+		ServerList=>$serv_list,
+		Callback=>\&eew_callback,
+		Logs=>$yaml->{WNIEEW}{Logs}
+	);
 }until(defined $eewsock);
 
 my $eewdec = Earthquake::EEW::Decoder->new();
@@ -99,7 +103,11 @@ while(1){
 			$sock->close();
 			if(ref($sock) eq 'EEWSock'){
 				do{
-					$eewsock = EEWSock->new(ServerList => $serv_list,Callback=>\&eew_callback);
+					$eewsock = EEWSock->new(
+						ServerList => $serv_list,
+						Callback=>\&eew_callback,
+						Logs=>$yaml->{WNIEEW}{Logs}
+					);
 				}until(defined $eewsock);
 				$select->add($eewsock);
 				$eewsock->logon($yaml->{WNIEEW});

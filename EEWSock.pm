@@ -30,6 +30,12 @@ sub configure
 	print "+Choose $host:$port\n";
 	
 	$args->{PeerAddr} = "$host:$port";
+
+	*$self->{timeout_log} = $args->{Logs}{Timeout};
+	*$self->{keepalive_log} = $args->{Logs}{KeepAlive};
+	
+	print "+Timeout Log Enabled\n" if *$self->{timeout_log};
+	print "+KeepAlive Log Enabled\n" if *$self->{keepalive_log};
 	
 	$self->SUPER::configure($args);
 }
@@ -95,7 +101,7 @@ sub send_ack
 	print $self $response->as_string;
 	print $self "\n";
 
-	print scalar localtime." Send Request(Timeout) Waiting...\n";
+	print scalar localtime." Send Request(Timeout) Waiting...\n" if *$self->{timeout_log};
 	$self->flush();
 }
 
@@ -162,7 +168,7 @@ sub parse_body
 				}elsif($id eq 'Response'){
 					print 'Auth Status:'.*$self->{header}{'X-WNI-Result'}."\n";
 				}elsif($id eq 'Keep-Alive'){
-					print scalar localtime." Keep-Alive...\n";
+					print scalar localtime." Keep-Alive...\n"  if *$self->{keepalive_log};
 				}else{
 					print "STATE:[$id]\n";
 				}

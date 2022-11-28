@@ -27,5 +27,8 @@ slack:
 WNIEEW:
  user: username
  passwd: bar
+# Logs:
+#  Timeout: 1
+#  KeepAlive: 1
 # if you don't want to write plain-password, set md5_hex(your password);
 # passwd-md5: md5hashedpassword
