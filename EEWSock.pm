@@ -13,6 +13,7 @@ use Time::HiRes;
 use HTTP::Tiny;
 use HTTP::Headers;
 use Digest::MD5 qw(md5_hex);
+use Socket qw(SOL_SOCKET SO_KEEPALIVE IPPROTO_TCP TCP_KEEPINTVL TCP_KEEPIDLE TCP_KEEPCNT);
 
 sub configure
 {
@@ -37,7 +38,16 @@ sub configure
 	print "+Timeout Log Enabled\n" if *$self->{timeout_log};
 	print "+KeepAlive Log Enabled\n" if *$self->{keepalive_log};
 	
-	$self->SUPER::configure($args);
+	my $sock = $self->SUPER::configure($args);
+
+	# activate TCP Keep-Alive
+	$sock->setsockopt(SOL_SOCKET, SO_KEEPALIVE,  1);
+	# keep-alive packet interval 15secs.
+	$sock->setsockopt(IPPROTO_TCP, TCP_KEEPINTVL, 15);
+	# idle wait 4minutes
+	$sock->setsockopt(IPPROTO_TCP, TCP_KEEPIDLE,  60 * 3 );
+
+	$sock;
 }
 
 sub choose_server
