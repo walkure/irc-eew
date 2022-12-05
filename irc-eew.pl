@@ -91,8 +91,8 @@ if(defined $yaml->{slack}){
 
 my $last_eq_id = '';
 
-while(1){
-	foreach my $sock($select->can_read(undef)){
+while(my @ready = $select->can_read) {
+	foreach my $sock(@ready){
 		my $buf;
 		my $len = $sock->sysread($buf,65535);
 		
