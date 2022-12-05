@@ -10,6 +10,8 @@ use warnings;
 use IO::Select;
 use YAML;
 use Encode;
+use File::Spec;
+use File::Path qw/mkpath/;
 
 use lib '.','./lib';
 use Earthquake::EEW::Decoder;
@@ -197,9 +199,24 @@ sub eew_callback
 
 	if(defined $eewlog && -e "$eewlog/$tmpfname"){
 		my $newname = $d->{eq_id}.'.'.$d->{warn_num};
-		print "++Rename [$tmpfname] -> [$newname]\n";
-		rename "$eewlog/$tmpfname" , "$eewlog/$newname";
+		my $fullname = get_fn_from_eqid($eewlog,$newname);
+		print "++Rename [$tmpfname] -> [$fullname]\n";
+		rename "$eewlog/$tmpfname" , $fullname;
 	}
 	
 }
 
+sub get_fn_from_eqid
+{
+    my ($dir,$eqid) = @_;
+
+    my $year = substr($eqid,0,4);
+    my $month = substr($eqid,4,2);
+    my $day = substr($eqid,6,2);
+
+    my $fdir = File::Spec->catdir($dir,$year,$month,$day);
+
+    mkpath($fdir);
+    
+	File::Spec->catfile($fdir,$eqid);
+}
