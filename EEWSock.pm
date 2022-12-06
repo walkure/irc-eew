@@ -107,9 +107,9 @@ sub send_ack
 		'X-WNI-Protocol-Version' => '2.1',
 		'X-WNI-Time' => $now
 	);
-	print $self "HTTP/1.0 200 OK\n";
-	print $self $response->as_string;
-	print $self "\n";
+
+	my $msg = "HTTP/1.0 200 OK\n" . $response->as_string ."\n";
+	$self->syswrite($msg);
 
 	print scalar localtime." Send Request(Timeout) Waiting...\n" if *$self->{timeout_log};
 	$self->flush();
@@ -135,9 +135,9 @@ sub logon
 		'X-WNI-Terminal-ID' => '211363088',
 		'X-WNI-Time' => $now
 	);
-	print $self "GET /login HTTP/1.0\n";
-	print $self $request->as_string ;
-	print $self "\n";
+	
+	my $body = "GET /login HTTP/1.0\n" . $request->as_string .  "\n" ;
+	$self->syswrite($body);
 	
 	$self->flush();
 	print scalar localtime." Send Request waiting...\n";
