@@ -21,7 +21,7 @@ CPANにあるモジュールより、https://github.com/Magistol/EEWDecoderの�
 
 コンテナで動かす場合は以下のような感じで：
 
-`docker run -it --rm  --mount type=bind,source=/usr/local/irc-eew/config,target=/conf,readonly ghcr.io/walkure/irc-eew:1.0.0`
+`docker run -it --rm  --mount type=bind,source=/usr/local/irc-eew/config,target=/conf,readonly ghcr.io/walkure/irc-eew:1.0.1`
 
 3.ちぅい
 WNIのサービスは有料(\315/month)。あと、何か時々第一報が届かないことがある。
