@@ -112,7 +112,6 @@ sub send_ack
 	$self->syswrite($msg);
 
 	print scalar localtime." Send Request(Timeout) Waiting...\n" if *$self->{timeout_log};
-	$self->flush();
 }
 
 sub logon
@@ -138,8 +137,7 @@ sub logon
 	
 	my $body = "GET /login HTTP/1.0\n" . $request->as_string .  "\n" ;
 	$self->syswrite($body);
-	
-	$self->flush();
+
 	print scalar localtime." Send Request waiting...\n";
 }
 
