@@ -93,7 +93,7 @@ my $last_eq_id = '';
 
 $! = 0;
 while(my @ready = $select->can_read(60 * 3.5)) {
-	if( length(@ready) == 0 ){
+	if( scalar(@ready) == 0 ){
 		die $! == 0 ?  "TCP Timeout..." : "Select Error:$!";
 	}
 	$! = 0;
