@@ -5,71 +5,107 @@
 
 use strict;
 use warnings;
-use CGI::Carp qw(fatalsToBrowser);
-
-use Encode;
-use Earthquake::EEW::Decoder;
+#use CGI::Carp qw(fatalsToBrowser);
+use File::Slurp qw(read_file);
 use CGI;
+use utf8;
+use lib '../lib/';
+use Earthquake::EEW::Decoder;
 
 my $ddir = '../eewlog/';
-my $ppd = 60;
+my $path_base = './';
 
-my $q = new CGI;
-my $page = $q->param('page');
-if(defined $page){
-	$page += 0;
-}else{
-	$page = 0;
-}
+binmode STDOUT, ":utf8";
+my $query = new CGI;
 
-print << "_HTML_";
-Content-Type:text/html;charset=euc-jp
+main($query);
 
-<html><head><title>index of EEW Data</title></head>
+sub main
+{
+	my $q = shift;
+	my $year = $q->param('year') ;
+	my $month = $q->param('month');
+	my $day = $q->param('day');
+
+	$year = saturate(defined $year ? $year + 0 : 0 , 2000,3000);
+	$month = saturate(defined $month ? $month + 0 : 0,1,12);
+	$day = saturate(defined $day ? $day + 0 : 0 , 1,31);
+
+	print << "_HTML_";
+Content-Type:text/html;charset=utf-8
+
+<html><head><title>list of EEW Data</title></head>
 <body>
-[<a href="../">Ìá¥ë</a>]
 	<ul>
 _HTML_
 
-opendir(my $dh,$ddir) or die "opendir($ddir):$!";
-my $file;
-#while($file = readdir($dh)){
-my @files = reverse sort readdir($dh);
-foreach my $fid($page*$ppd .. ($page+1)*$ppd){
-	my $file = $files[$fid];
-	last unless defined $file;
-	next if $file =~/^\./;
-
-	my $path = $ddir.'/'.$file;
-	open(my $fh,$path) or die "Cannot open $path:$!";
-	my $len = sysread $fh, my($buf), 1024;
-	close($fh);
-	my $msg = get_eew_summary($buf);
-	print qq|<li><a href="./eew-show.pl?data=$file">$msg</a></li>\n|;
-
-}
-
-print "</ul><hr>\n";
-
-foreach my $p(0 .. (scalar @files)/$ppd-1){
-	if($p eq $page){
-		printf qq|[<a href="?page=$p">$p</a>] |;
-	}else{
-		printf qq|<a href="?page=$p">$p</a> |;
+	unless( -e "$ddir/$year" ){
+		opendir(my $dh,$ddir) or die "opendir($ddir):$!";
+		foreach my $d (sort readdir($dh)){
+			next unless $d =~ /^\d+/;
+			print qq|<li><a href="$path_base?year=$d">${d}å¹´</a></li>\n|;
+		}
+		closedir($dh);
+		print << "_HTML_";
+</body></html>
+_HTML_
+		return;
 	}
-}
+	unless( -e sprintf('%s/%04d/%02d',$ddir,$year,$month)){
+		opendir(my $dh,"$ddir/$year") or die "opendir($ddir):$!";
+		foreach my $d (sort readdir($dh)){
+			next unless $d =~ /^\d+/;
+			$d += 0;
+			print qq|<li><a href="$path_base?year=$year&month=$d">${d}æœˆ</a></li>\n|;
+		}
+		closedir($dh);
+		print << "_HTML_";
+</body></html>
+_HTML_
+		return;
+	}
+	unless( -e sprintf('%s/%04d/%02d/%02d',$ddir,$year,$month,$day)){
+		opendir(my $dh,sprintf('%s/%04d/%02d',$ddir,$year,$month)) or die "opendir($ddir):$!";
+		foreach my $d (sort readdir($dh)){
+			next unless $d =~ /^\d+/;
+			$d += 0;
+			print qq|<li><a href="$path_base?year=$year&month=$month&day=$d">${d}æ—¥</a></li>\n|;
+		}
+		closedir($dh);
+		print << "_HTML_";
+</body></html>
+_HTML_
+		return;
+	}
 
-print << "_HTML_";
+	opendir(my $dh,sprintf('%s/%04d/%02d/%02d',$ddir,$year,$month,$day)) or die "opendir($ddir):$!";
+	foreach my $d (sort readdir($dh)){
+		next unless $d =~ /^\d+\.\d+/;
+
+		my $path = sprintf('%s/%04d/%02d/%02d/%s',$ddir,$year,$month,$day,$d);
+		my $summary = get_eew_summary($path);
+		print qq|<li><a href="${path_base}eew-view.pl?name=$d">$summary</a></li>\n|;
+	}
+	closedir($dh);
+	print << "_HTML_";
 </body></html>
 _HTML_
 
+}
+sub saturate{
+	my($value,$min,$max) = @_;
+
+	return $max if $value > $max;
+	return $min if $value < $min;
+	$value;
+}
+
 sub get_eew_summary
 {
-	my $buf = shift;
+	my $path = shift;
 	my $eew = Earthquake::EEW::Decoder->new();
-
-	my $d = $eew->read_data($buf);
-	conv_charset($d);
+	my $data = read_file($path);
+	my $d = $eew->read_data($data);
 
 	my @wd = $d->{warn_time} =~ /\d\d/og;
 	my @ed = $d->{eq_time}   =~ /\d\d/og;
@@ -77,28 +113,20 @@ sub get_eew_summary
 	my $warnmsg = "20$wd[0]/$wd[1]/$wd[2] $wd[3]:$wd[4]:$wd[5]";
 	my $eqedmsg = "$ed[3]:$ed[4]:$ed[5]";
 
-	my $times = 'Âè'.sprintf '%02dÊó%s',
+	my $times = 'ç¬¬'.sprintf '%02då ±%s',
 		$d->{warn_num},
-		$d->{NCN_type} >=8 ? '(ºÇ½ª)' : '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;';
+		$d->{NCN_type} >=8 ? '(æœ€çµ‚)' : '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;';
 
 	my $msg;
 	if($d->{'msg_type_code'} == 10){
-        $msg = $warnmsg.$times.' ('.$eqedmsg.'È¯À¸) ¼è¤ê¾Ã¤·';
+        $msg = $warnmsg.$times.' ('.$eqedmsg.'ç™ºç”Ÿ) å–ã‚Šæ¶ˆã—';
 	}else{
-        my $center = sprintf('¿Ì±û:N%.01f/E%0.01f(%s)¿¼¤µ%dkm',$d->{'center_lat'},$d->{'center_lng'},$d->{'center_name'},$d->{'center_depth'});
-        my $magnitude = sprintf(' ºÇÂç:M%.01f ¿ÌÅÙ%s',$d->{'magnitude'},$d->{'shindo'});
-        $msg = $warnmsg.$times.' ('.$eqedmsg.'È¯À¸)'.$center.$magnitude;
+        my $center = sprintf('éœ‡å¤®:N%.01f/E%0.01f(%s)æ·±ã•%dkm',$d->{'center_lat'},$d->{'center_lng'},$d->{'center_name'},$d->{'center_depth'});
+        my $magnitude = sprintf(' æœ€å¤§:M%.01f éœ‡åº¦%s',$d->{'magnitude'},$d->{'shindo'});
+        $msg = $warnmsg.$times.' ('.$eqedmsg.'ç™ºç”Ÿ)'.$center.$magnitude;
 	}
 	
-	$msg.= ' (ÃÏ°èÍ½ÁÛ¿ÌÅÙ¾ðÊó¤¢¤ê)' if defined $d->{EBI};
+	$msg.= ' (åœ°åŸŸäºˆæƒ³éœ‡åº¦æƒ…å ±ã‚ã‚Š)' if defined $d->{EBI};
 
 	$msg;
-}
-
-sub conv_charset
-{
-	my $d = shift;
-	foreach my $key(keys %$d){
-		$d->{$key} = Encode::encode('euc-jp',$d->{$key});
-	}
 }
