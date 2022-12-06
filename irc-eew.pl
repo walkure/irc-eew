@@ -92,7 +92,11 @@ if(defined $yaml->{slack}){
 my $last_eq_id = '';
 
 $! = 0;
-while(my @ready = $select->can_read(60*3.5)) {
+while(my @ready = $select->can_read(60 * 3.5)) {
+	if( length(@ready) == 0 ){
+		die $! == 0 ?  "TCP Timeout..." : "Select Error:$!";
+	}
+	$! = 0;
 	foreach my $sock(@ready){
 		my $buf;
 		my $len = $sock->sysread($buf,65535);
@@ -124,13 +128,12 @@ while(my @ready = $select->can_read(60*3.5)) {
 			}
 		}
 	}
+	if($! != 0){
+		print "Errored:$!\n";
+	}
+	$! = 0;
 }
 
-if($! == 0){
-	print "TCP Timeout...\n";
-}else{
-	print "Error:$!\n";
-}
 
 sub eew_callback
 {
