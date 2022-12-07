@@ -5,20 +5,35 @@
 
 use strict;
 use warnings;
-#use CGI::Carp qw(fatalsToBrowser);
 use File::Slurp qw(read_file);
-use CGI;
+use CGI::Fast;
 use utf8;
-use lib '../lib/';
+use lib './lib/';
 use Earthquake::EEW::Decoder;
+use Data::Dumper;
 
-my $ddir = '../eewlog/';
-my $path_base = './';
+my $ddir =      defined $ENV{EEW_DATA_DIR}   ? $ENV{EEW_DATA_DIR}   : '/eewlog/';
+my $path_base = defined $ENV{EEW_PATH_BASE}  ? $ENV{EEW_PATH_BASE}  : './';
+my $viewer =    defined $ENV{EEW_VIEWER}     ? $ENV{EEW_VIEWER}     :'eew-show' ;
 
 binmode STDOUT, ":utf8";
-my $query = new CGI;
+#my $query = new CGI;
 
-main($query);
+# https://github.com/perl-catalyst/FCGI/commit/7369e6b96a59b425f5b44bdf52a95387baa0e782
+if(defined *FCGI::Stream::PRINT){
+	my $fcgi_print = \&FCGI::Stream::PRINT;
+	undef *FCGI::Stream::PRINT;
+	*FCGI::Stream::PRINT = sub {
+		my $stream = shift;
+		my @args = map {my $i = $_ ; utf8::encode($i); $i} @_;
+
+		&$fcgi_print($stream,@args);
+	};
+}
+
+while(my $query = new CGI::Fast){
+	main($query);
+}
 
 sub main
 {
@@ -53,10 +68,11 @@ _HTML_
 	}
 	unless( -e sprintf('%s/%04d/%02d',$ddir,$year,$month)){
 		opendir(my $dh,"$ddir/$year") or die "opendir($ddir):$!";
+		my $prefix =  qq|<a href="$path_base?year=$year">${year}</a>年|;
 		foreach my $d (sort readdir($dh)){
 			next unless $d =~ /^\d+/;
 			$d += 0;
-			print qq|<li><a href="$path_base?year=$year&month=$d">${d}月</a></li>\n|;
+			print qq|<li>$prefix<a href="$path_base?year=$year&month=$d">${d}</a>月</li>\n|;
 		}
 		closedir($dh);
 		print << "_HTML_";
@@ -66,10 +82,11 @@ _HTML_
 	}
 	unless( -e sprintf('%s/%04d/%02d/%02d',$ddir,$year,$month,$day)){
 		opendir(my $dh,sprintf('%s/%04d/%02d',$ddir,$year,$month)) or die "opendir($ddir):$!";
+		my $prefix = qq|<a href="$path_base?year=$year">${year}</a>年<a href="$path_base?year=$year&month=$month">${month}</a>月|;
 		foreach my $d (sort readdir($dh)){
 			next unless $d =~ /^\d+/;
 			$d += 0;
-			print qq|<li><a href="$path_base?year=$year&month=$month&day=$d">${d}日</a></li>\n|;
+			print qq|<li>$prefix<a href="$path_base?year=$year&month=$month&day=$d">${d}</a>日</li>\n|;
 		}
 		closedir($dh);
 		print << "_HTML_";
@@ -79,12 +96,13 @@ _HTML_
 	}
 
 	opendir(my $dh,sprintf('%s/%04d/%02d/%02d',$ddir,$year,$month,$day)) or die "opendir($ddir):$!";
+	my $prefix = qq|<a href="$path_base?year=$year">$year</a>年<a href="$path_base?year=$year&month=$month">$month</a>月${day}日|;
 	foreach my $d (sort readdir($dh)){
 		next unless $d =~ /^\d+\.\d+/;
 
 		my $path = sprintf('%s/%04d/%02d/%02d/%s',$ddir,$year,$month,$day,$d);
 		my $summary = get_eew_summary($path);
-		print qq|<li><a href="${path_base}eew-view.pl?name=$d">$summary</a></li>\n|;
+		print qq|<li>$prefix <a href="$path_base$viewer?name=$d">■</a> $summary</li>\n|;
 	}
 	closedir($dh);
 	print << "_HTML_";
@@ -110,7 +128,7 @@ sub get_eew_summary
 	my @wd = $d->{warn_time} =~ /\d\d/og;
 	my @ed = $d->{eq_time}   =~ /\d\d/og;
 	
-	my $warnmsg = "20$wd[0]/$wd[1]/$wd[2] $wd[3]:$wd[4]:$wd[5]";
+	my $warnmsg = "$wd[3]:$wd[4]:$wd[5]";
 	my $eqedmsg = "$ed[3]:$ed[4]:$ed[5]";
 
 	my $times = '第'.sprintf '%02d報%s',

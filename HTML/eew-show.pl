@@ -1,7 +1,5 @@
 #!/usr/bin/env perl
 
-use CGI::Carp qw(fatalsToBrowser);
-
 # show specified EEW log data file
 # walkure at kmc.gr.jp
 # cf. http://eew.mizar.jp/excodeformat
@@ -9,150 +7,157 @@ use CGI::Carp qw(fatalsToBrowser);
 use strict;
 use warnings;
 
-use Earthquake::EEW::Decoder;
+use utf8;
 use Encode;
-use Data::Dumper;
-use CGI;
-use feature q/:5.10/;
+use CGI::Fast;
+use File::Spec;
+use File::Slurp qw(read_file);
 
-my $ddir = '../eewlog';
+use lib './lib/';
+use Earthquake::EEW::Decoder;
 
-my $q=new CGI;
-my $fname = $q->param('data');
+binmode STDOUT, ":utf8";
 
-print "Content-Type:text/html;charset=euc-jp\n\n";
+my $ddir =      defined $ENV{EEW_DATA_DIR}  ? $ENV{EEW_DATA_DIR}  : '/eewlog/';
+my $path_base = defined $ENV{EEW_PATH_BASE} ? $ENV{EEW_PATH_BASE} : './';
 
-unless($fname =~ /\d+\.+/){
-	print "invalid path\n";
-	exit;
+# https://github.com/perl-catalyst/FCGI/commit/7369e6b96a59b425f5b44bdf52a95387baa0e782
+if(defined *FCGI::Stream::PRINT){
+	my $fcgi_print = \&FCGI::Stream::PRINT;
+	undef *FCGI::Stream::PRINT;
+	*FCGI::Stream::PRINT = sub {
+		my $stream = shift;
+		my @args = map {my $i = $_ ; utf8::encode($i); $i} @_;
+
+		&$fcgi_print($stream,@args);
+	};
 }
 
-my $path = $ddir.'/'.$fname;
+while(my $query = new CGI::Fast){
+	main($query);
+}
 
-open(my $fh,$path) or die "Cannot open $path:$!";
-my $len = sysread $fh, my($buf), 1024;
-close($fh);
 
-my $eew = Earthquake::EEW::Decoder->new();
+sub main
+{
+	my $q = shift;
+	my $fname = $q->param('name');
 
-my $d = $eew->read_data($buf);
-conv_charset($d);
-my $dumped = Dumper $d;
+	print "Content-Type:text/html;charset=utf-8\n\n";
 
-my @wd = $d->{warn_time} =~ /\d\d/og;
-my @ed = $d->{eq_time}   =~ /\d\d/og;
-$d->{warn_time} = "20$wd[0]/$wd[1]/$wd[2] $wd[3]:$wd[4]:$wd[5]";
-$d->{eq_time} = "20$ed[0]/$ed[1]/$wd[2] $ed[3]:$ed[4]:$ed[5]";
+	unless(defined $fname){
+		print "invalid query\n";
+		exit;
+	}
 
-my $summary = eew_summary($d);
+	unless($fname =~ /\d+\.+/){
+		print "invalid name\n";
+		exit;
+	}
 
-print << "_HTML_";
+	my $path = get_fn_from_eqid($ddir,$fname);
+	my $eew = Earthquake::EEW::Decoder->new();
+	my $data = read_file($path, { binmode => ':encoding(sjis)' });
+
+	my $d = $eew->read_data($data);
+
+	my @wd = $d->{warn_time} =~ /\d\d/og;
+	my @ed = $d->{eq_time}   =~ /\d\d/og;
+	$d->{warn_time} = "20$wd[0]/$wd[1]/$wd[2] $wd[3]:$wd[4]:$wd[5]";
+	$d->{eq_time} = "20$ed[0]/$ed[1]/$wd[2] $ed[3]:$ed[4]:$ed[5]";
+
+	my $summary = eew_summary($d);
+
+	print << "_HTML_";
 <html><head><title>
 $summary
 </title></head><body>
-[<a href="./">Ìá¤ë</a>]&nbsp;
+[<a href="@{[get_return_pathquery($path_base,$fname)]}">æˆ»ã‚‹</a>]&nbsp;
 $summary
 _HTML_
 
-print "<hr><table>\n";
+	print "<hr><table>\n";
 
-my($lat,$long,$center);	
-foreach my $it(keys %$d){
-
-	given($it){
-		when('shindo'){
-			print '<tr><td>ºÇÂç¿ÌÅÙ</td><td>'.$d->{shindo}."</td></tr>\n";
-		}
-		when('magnitude'){
-			print '<tr><td>¥Ş¥°¥Ë¥Á¥å¡¼¥É</td><td>'.$d->{magnitude};
+	my($lat,$long,$center);	
+	foreach my $it(sort keys %$d){
+		
+		if($it eq 'shindo' ){
+			print '<tr><td>æœ€å¤§éœ‡åº¦</td><td>'.$d->{shindo}."</td></tr>\n";
+		}elsif($it eq 'magnitude'){
+			print '<tr><td>ãƒã‚°ãƒ‹ãƒãƒ¥ãƒ¼ãƒ‰</td><td>'.$d->{magnitude};
 			print '('.$d->{magnitude_accurate}.')'if(defined $d->{magnitude_accurate});
 			print "</td></tr>\n";
-		}
-		when('eq_time'){
-			print '<tr><td>¸¡ÃÎÆü»ş</td><td>'.$d->{eq_time}."</td></tr>\n";
-		}
-		when('warn_time'){
-			print '<tr><td>ÄÌÃÎÆü»ş</td><td>'.$d->{warn_time}."</td></tr>\n";
-		}
-		when('code_type'){
-			print '<tr><td>ÄÌÃÎÆâÍÆ</td><td>'.$d->{code_type}."</td></tr>\n";
-		}
-		when('warn_type'){
-			print '<tr><td>ÄÌÃÎÂĞ¾İ</td><td>'.$d->{warn_type}."</td></tr>\n";
-		}
-		when('msg_type'){
-			print '<tr><td>ÄÌÃÎ¼ïÎà</td><td>'.$d->{msg_type}."</td></tr>\n";
-		}
-		when('section'){
-			print '<tr><td>È¯¿®´±½ğ</td><td>'.$d->{section}."</td></tr>\n";
-		}
-		when('center_depth'){
-			print '<tr><td>¿Ì¸»¿¼ÅÙ</td><td>'.$d->{center_depth}.'km';
+		}elsif($it eq 'eq_time'){
+			print '<tr><td>æ¤œçŸ¥æ—¥æ™‚</td><td>'.$d->{eq_time}."</td></tr>\n";
+		}elsif($it eq 'warn_time'){
+			print '<tr><td>é€šçŸ¥æ—¥æ™‚</td><td>'.$d->{warn_time}."</td></tr>\n";
+		}elsif($it eq 'code_type'){
+			print '<tr><td>é€šçŸ¥å†…å®¹</td><td>'.$d->{code_type}."</td></tr>\n";
+		}elsif($it eq 'warn_type'){
+			print '<tr><td>é€šçŸ¥å¯¾è±¡</td><td>'.$d->{warn_type}."</td></tr>\n";
+		}elsif($it eq 'msg_type'){
+			print '<tr><td>é€šçŸ¥ç¨®é¡</td><td>'.$d->{msg_type}."</td></tr>\n";
+		}elsif($it eq 'section'){
+			print '<tr><td>ç™ºä¿¡å®˜ç½²</td><td>'.$d->{section}."</td></tr>\n";
+		}elsif($it eq 'center_depth'){
+			print '<tr><td>éœ‡æºæ·±åº¦</td><td>'.$d->{center_depth}.'km';
 			print '('.$d->{center_accurate}.')' if defined $d->{center_accurate};
 			print "</td></tr>\n";
-		}
-		when('warn_num'){
-			my $times = 'Âè'.$d->{warn_num}.'Êó';
-			$times .= '(ºÇ½ª)' if ($d->{NCN_type} >= 8);
-			print '<tr><td>Êó¿ô</td><td>'.$times."</td></tr>\n";
-		}
-		when('center_name'){
+		}elsif($it eq 'warn_num'){
+			my $times = 'ç¬¬'.$d->{warn_num}.'å ±';
+			$times .= '(æœ€çµ‚)' if ($d->{NCN_type} >= 8);
+			print '<tr><td>å ±æ•°</td><td>'.$times."</td></tr>\n";
+		}elsif($it eq 'center_name'){
 			$center = $d->{center_name};
 			show_center($lat,$long,$center,$d);
-		}
-		when('center_lng'){
+		}elsif($it eq 'center_lng'){
 			$long = $d->{center_lng};
 			show_center($lat,$long,$center,$d);
-		}
-		when('center_lat'){
+		}elsif($it eq 'center_lat'){
 			$lat = $d->{center_lat};
 			show_center($lat,$long,$center,$d);
-		}
-		when('eq_id'){
-			print '<tr><td>ÃÏ¿ÌID</td><td>'.$d->{eq_id}."</td></tr>\n";
+		}elsif($it eq 'eq_id'){
+			print '<tr><td>åœ°éœ‡ID</td><td>'.$d->{eq_id}."</td></tr>\n";
 		}
 	}
-}
 
-print "</table><hr>\n";
+	print "</table><hr>\n";
 
-if(defined $d->{EBI}){
-	print '<table><tr><td>ÃÏ°è</td><td>Í½Â¬¿ÌÅÙ</td><td>Í½ÁÛ»ş¹ï</td></tr>';
-	foreach my $area (keys %{$d->{EBI}} ){
-		my $ebi = $d->{EBI}{$area};
+	if(defined $d->{EBI}){
+		print '<table><tr><td>åœ°åŸŸ</td><td>äºˆæ¸¬éœ‡åº¦</td><td>äºˆæƒ³æ™‚åˆ»</td></tr>';
+		foreach my $area (keys %{$d->{EBI}} ){
+			my $ebi = $d->{EBI}{$area};
 
-		my @ar = $ebi->{time} =~ /\d\d/og;
-		$ebi->{time} = "$ar[0]:$ar[1]:$ar[2]";
-		$ebi->{time} = '´û¤ËÅşÃ£' if($ebi->{time} eq '::');
+			my @ar = $ebi->{time} =~ /\d\d/og;
+			$ebi->{time} = "$ar[0]:$ar[1]:$ar[2]";
+			$ebi->{time} = 'æ—¢ã«åˆ°é”' if($ebi->{time} eq '::');
 
-		print '<tr><td>'.$ebi->{name}.'</td><td>¿ÌÅÙ'.$ebi->{shindo1};
-		if($ebi->{shindo2_code} eq '//'){
-			print '°Ê¾å';
-		}elsif($ebi->{shindo1} ne $ebi->{shindo2}){
-			print '¡Á¿ÌÅÙ'.$ebi->{shindo2};
+			print '<tr><td>'.$ebi->{name}.'</td><td>éœ‡åº¦'.$ebi->{shindo1};
+			if($ebi->{shindo2_code} eq '//'){
+				print 'ä»¥ä¸Š';
+			}elsif($ebi->{shindo1} ne $ebi->{shindo2}){
+				print 'ï½éœ‡åº¦'.$ebi->{shindo2};
+			}
+			print '</td><td>'.$ebi->{time}.'</td></tr>';
 		}
-		print '</td><td>'.$ebi->{time}.'</td></tr>';
+
+		print '</table><hr>';
 	}
 
-	print '</table><hr>';
-}
+	#Encode::from_to($data,'cp932','utf8');
 
+	$data =~ s/\x01/\[SOH\]\n/g;
+	$data =~ s/\x02/\[STX\]\n/g;
+	$data =~ s/\x03/\[ETX\]\n/g;
 
-print "\n<pre>$dumped</pre><hr>\n";
+	print "<pre>$data</pre>";
 
-Encode::from_to($buf,'shift_jis','euc-jp');
-
-$buf =~ s/\x01/\[SOH\]\n/g;
-$buf =~ s/\x02/\[STX\]\n/g;
-$buf =~ s/\x03/\[ETX\]\n/g;
-
-print "<pre>$buf</pre>";
-
-print << "_HTML_";
+	print << "_HTML_";
 
 </body></html>
 _HTML_
 
+}
 
 sub show_center
 {
@@ -166,7 +171,7 @@ sub show_center
 	$acmsg = '('.$d->{center_accurate}.')' if defined $d->{center_accurate};
 
 	print << "_HTML_";
-<tr><td>¿Ì±û°ÌÃÖ</td><td>
+<tr><td>éœ‡å¤®ä½ç½®</td><td>
 <a href="http://maps.google.com/maps?q=$latmsg,$longmsg">N$latmsg E$longmsg</a>($center) $acmsg
 </td></tr>
 _HTML_
@@ -176,30 +181,41 @@ _HTML_
 sub eew_summary
 {
 	my $d = shift;
-	my $times = ' Âè'.$d->{'warn_num'};
-	$times .= '(ºÇ½ª)' if $d->{NCN_type} >=8;
+	my $times = ' ç¬¬'.$d->{'warn_num'};
+	$times .= '(æœ€çµ‚)' if $d->{NCN_type} >=8;
 
 	my $msg;
 	if($d->{'msg_type_code'} == 10){
-		$msg = $d->{warn_time}.$times.'Êó ('.$d->{eq_time}.'È¯À¸) ¼è¤ê¾Ã¤·';
+		$msg = $d->{warn_time}.$times.'å ± ('.$d->{eq_time}.'ç™ºç”Ÿ) å–ã‚Šæ¶ˆã—';
 	}else{
-		my $center = sprintf('¿Ì±û:N%0.01f/E%0.01f(%s)¿¼¤µ%dkm',$d->{'center_lat'},$d->{'center_lng'},$d->{'center_name'},$d->{'center_depth'});
-		my $magnitude = sprintf(' ºÇÂç:M%.01f ¿ÌÅÙ%s',$d->{'magnitude'},$d->{'shindo'});
-		$msg = $d->{warn_time}.$times.'Êó ('.$d->{eq_time}.'È¯À¸)'.$center.$magnitude;
+		my $center = sprintf('éœ‡å¤®:N%0.01f/E%0.01f(%s)æ·±ã•%dkm',$d->{'center_lat'},$d->{'center_lng'},$d->{'center_name'},$d->{'center_depth'});
+		my $magnitude = sprintf(' æœ€å¤§:M%.01f éœ‡åº¦%s',$d->{'magnitude'},$d->{'shindo'});
+		$msg = $d->{warn_time}.$times.'å ± ('.$d->{eq_time}.'ç™ºç”Ÿ)'.$center.$magnitude;
 	}
 	$msg;
 }
 
-
-sub conv_charset
+sub get_fn_from_eqid
 {
-	my $d = shift;
-	foreach my $key(keys %$d){
-		if(ref($d->{$key}) eq 'HASH'){
-			conv_charset($d->{$key});
-		}else{
-			$d->{$key} = Encode::encode('euc-jp',$d->{$key});
-		}
-	}
+    my ($dir,$eqid) = @_;
 
+    my $year = substr($eqid,0,4);
+    my $month = substr($eqid,4,2);
+    my $day = substr($eqid,6,2);
+
+    my $fdir = File::Spec->catdir($dir,$year,$month,$day);
+
+    my $fpath = File::Spec->catfile($fdir,$eqid);
+
+    $fpath;
+}
+
+sub get_return_pathquery{
+	my ($base,$eqid) = @_;
+
+    my $year = substr($eqid,0,4);
+    my $month = substr($eqid,4,2);
+    my $day = substr($eqid,6,2);
+
+	"$base?year=$year&month=$month&day=$day";
 }
