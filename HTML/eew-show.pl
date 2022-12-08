@@ -144,6 +144,8 @@ _HTML_
 		print '</table><hr>';
 	}
 
+	show_map($lat,$long);
+
 	#Encode::from_to($data,'cp932','utf8');
 
 	$data =~ s/\x01/\[SOH\]\n/g;
@@ -174,6 +176,20 @@ sub show_center
 <tr><td>震央位置</td><td>
 <a href="http://maps.google.com/maps?q=$latmsg,$longmsg">N$latmsg E$longmsg</a>($center) $acmsg
 </td></tr>
+_HTML_
+
+}
+
+sub show_map
+{
+	my($lat,$long) = @_;
+
+	my $latmsg = sprintf '%0.01f',$lat;
+	my $longmsg = sprintf '%0.01f',$long;
+
+	print << "_HTML_";
+		<iframe src="https://maps.google.com/maps?output=embed&q=$latmsg,$longmsg&t=m&hl=ja&z=7"
+ width="60%" height="50%" frameborder="0" style="border:0;" allowfullscreen=""></iframe>
 _HTML_
 
 }
