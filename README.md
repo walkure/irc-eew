@@ -1,10 +1,12 @@
-irc-eew // EEW-IRC/Slack bot
+# irc-eew // EEW-IRC/Slack bot
 
-1.About
+## About
+
 Receive EEW(Earthquake Early Warning) from Weathernews(WNI)'s paid service via TCP
 and Post to IRC/Slack channels.
 
-2.How to use
+## How to use
+
 -Write your configucation at config.yaml about WNI EEW and your IRC server/channel or Your Slack incoming-webhooks.
 -Start this script.
 
@@ -14,23 +16,26 @@ For Docker: `docker run -it --rm  --mount type=bind,source=/usr/local/irc-eew/co
 
 You can run EEW viewer. for details: `./HTML/`.
 
-3.Dependencies
+## Dependencies
 
--Earthquake::EEW::Decoder
- https://github.com/Magistol/EEWDecoder
+- Earthquake::EEW::Decoder
+  - <https://github.com/Magistol/EEWDecoder>
 
-4.FYI
+## FYI
+
 *Written in Japanese only
 
--Weathernews
- http://weathernews.jp/quake/html/urgentquake.html
--EEW Message Code format(Un-official)
- http://eew.mizar.jp/excodeformat
--EEW Decoder(receiver sample)
- https://github.com/skubota/EEW-decorder
+- Weathernews
+  - <http://weathernews.jp/quake/html/urgentquake.html>
+- EEW Message Code format(Un-official)
+  - <http://eew.mizar.jp/excodeformat>
+- EEW Decoder(receiver sample)
+  - <https://github.com/skubota/EEW-decorder>
 
-5.Author
+## Author
+
  walkure at 3pf.jp
 
-6.License
+## License
+
  MIT License
