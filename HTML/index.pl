@@ -123,7 +123,7 @@ sub get_eew_summary
 	my $path = shift;
 	my $eew = Earthquake::EEW::Decoder->new();
 	my $data = read_file($path);
-	my $d = $eew->read_data($data);
+	my $d = $eew->read_data($data, { binmode => ':encoding(sjis)' });
 
 	my @wd = $d->{warn_time} =~ /\d\d/og;
 	my @ed = $d->{eq_time}   =~ /\d\d/og;
