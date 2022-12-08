@@ -22,4 +22,5 @@ ADD --chown=nonroot:nonroot https://raw.githubusercontent.com/walkure/Earthquake
 #  because `/usr/share/zoneinfo/Asia/Tokyo` not exists.
 # Also no need to set `TZ=JST-9`.
 
-ENTRYPOINT [ "perl","./irc-eew.pl","/conf/config.yaml" ]
+ENTRYPOINT [ "perl","./irc-eew.pl"]
+CMD ["/conf/config.yaml"]
