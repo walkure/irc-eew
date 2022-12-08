@@ -71,7 +71,9 @@ sub main
 	print << "_HTML_";
 <html><head><title>
 $summary
-</title></head><body>
+</title>
+<meta name="robots" content="noindex,nofollow,noarchive" />
+</head><body>
 [<a href="@{[get_return_pathquery($path_base,$fname)]}">戻る</a>]&nbsp;
 $summary
 _HTML_

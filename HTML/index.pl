@@ -49,7 +49,9 @@ sub main
 	print << "_HTML_";
 Content-Type:text/html;charset=utf-8
 
-<html><head><title>list of EEW Data</title></head>
+<html><head><title>list of EEW Data</title>
+<meta name="robots" content="noindex,nofollow,noarchive" />
+</head>
 <body>
 	<ul>
 _HTML_
