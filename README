@@ -10,7 +10,9 @@ and Post to IRC/Slack channels.
 
 *No flood control while posting messages to IRC server.
 
-For Docker: `docker run -it --rm  --mount type=bind,source=/usr/local/irc-eew/config,target=/conf,readonly ghcr.io/walkure/irc-eew:1.0.1`
+For Docker: `docker run -it --rm  --mount type=bind,source=/usr/local/irc-eew/config,target=/conf,readonly ghcr.io/walkure/irc-eew:latest`
+
+You can run EEW viewer. for details: `./HTML/`.
 
 3.Dependencies
 
