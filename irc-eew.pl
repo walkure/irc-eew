@@ -21,6 +21,7 @@ use EEWSock;
 use SlackWebhookSock;
 
 binmode STDOUT,':utf8';
+$|=1;
 
 $SIG{'TERM'} = sub {die "SIGTERMed\n";};
 $SIG{'INT'} = sub {die "SIGINTed\n";};
