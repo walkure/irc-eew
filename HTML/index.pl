@@ -42,9 +42,9 @@ sub main
 	my $month = $q->param('month');
 	my $day = $q->param('day');
 
-	$year = saturate(defined $year ? $year + 0 : 0 , 2000,3000);
-	$month = saturate(defined $month ? $month + 0 : 0,1,12);
-	$day = saturate(defined $day ? $day + 0 : 0 , 1,31);
+	$year = saturate($year, 2000, 3000);
+	$month = saturate($month, 1, 12);
+	$day = saturate($day, 1, 31);
 
 	print << "_HTML_";
 Content-Type:text/html;charset=utf-8
@@ -115,6 +115,7 @@ _HTML_
 sub saturate{
 	my($value,$min,$max) = @_;
 
+	return 0 unless defined $value;
 	return $max if $value > $max;
 	return $min if $value < $min;
 	$value;
