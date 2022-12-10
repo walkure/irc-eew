@@ -53,6 +53,7 @@ Content-Type:text/html;charset=utf-8
 <meta name="robots" content="noindex,nofollow,noarchive" />
 </head>
 <body>
+[<a href="$path_base">top</a>]<br>
 	<ul>
 _HTML_
 
@@ -60,6 +61,7 @@ _HTML_
 		opendir(my $dh,$ddir) or die "opendir($ddir):$!";
 		foreach my $d (sort readdir($dh)){
 			next unless $d =~ /^\d+/;
+			$d += 0;
 			print qq|<li><a href="$path_base?year=$d">${d}年</a></li>\n|;
 		}
 		closedir($dh);
@@ -84,7 +86,7 @@ _HTML_
 	}
 	unless( -e sprintf('%s/%04d/%02d/%02d',$ddir,$year,$month,$day)){
 		opendir(my $dh,sprintf('%s/%04d/%02d',$ddir,$year,$month)) or die "opendir($ddir):$!";
-		my $prefix = qq|<a href="$path_base?year=$year">${year}</a>年<a href="$path_base?year=$year&month=$month">${month}</a>月|;
+		my $prefix = qq|<a href="$path_base?year=$year">${year}</a>年${month}月|;
 		foreach my $d (sort readdir($dh)){
 			next unless $d =~ /^\d+/;
 			$d += 0;
