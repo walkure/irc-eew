@@ -86,8 +86,8 @@ if(defined $yaml->{irc}){
 
 my (@all_hooks,@limited_hooks);
 if(defined $yaml->{slack}){
-	push(@all_hooks,@{$yaml->{slack}{all}});
-	push(@limited_hooks,@{$yaml->{slack}{limited}});
+	push(@all_hooks,@{$yaml->{slack}{all}}) if defined $yaml->{slack}{all};
+	push(@limited_hooks,@{$yaml->{slack}{limited}}) if defined $yaml->{slack}{limited};
 }
 
 my $last_eq_id = '';
