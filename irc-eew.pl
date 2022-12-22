@@ -202,7 +202,9 @@ sub eew_callback
 			my $webhsock = SlackWebhookSock->new($endpoint);
 			next unless defined $webhsock;
 			print '++Noticed ['.$webhsock->name."]\n";
-			$webhsock->send_json({"text"=> $msg});
+			my $title = '緊急地震速報';
+			$title = $d->{warn_type}.$title if defined $d->{warn_type};
+			$webhsock->send_json({"text"=> $msg, 'username'=>$title});
 			$select->add($webhsock);
 		}
 		
