@@ -1,0 +1,22 @@
+{
+    "name": "dev",
+    "dockerFile": "Dockerfile",
+    "postCreateCommand": "chmod +x ./.devcontainer/postCreateCommand.sh ; ./.devcontainer/postCreateCommand.sh",
+    "extensions": [
+        "ms-azuretools.vscode-docker",
+        "bscan.perlnavigator"
+    ],
+    "remoteEnv": {
+        "TZ": "Asia/Tokyo",
+        "PERL5LIB":"${containerWorkspaceFolder}/lib",
+        "EEW_DATA_DIR":"${containerWorkspaceFolder}/eewlog"
+    },
+    "settings": {
+        "terminal.integrated.profiles.linux": {
+            "bash": {
+                "path": "/bin/bash"
+            }
+        },
+        "terminal.integrated.defaultProfile.linux": "bash"
+    }
+}
