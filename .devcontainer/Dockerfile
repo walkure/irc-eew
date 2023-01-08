@@ -13,5 +13,5 @@ RUN apk add --no-cache \
 # avoid 'exec /bin/bash bash' and failure '/bin/bash: /bin/bash: cannot execute binary file'
 RUN SWITCHED_TO_BASH=true bash -c "$(curl -fsSL "https://raw.githubusercontent.com/microsoft/vscode-dev-containers/main/script-library/common-alpine.sh")"
 
-WORKDIR /workspace
+WORKDIR /workspaces
 USER vscode
