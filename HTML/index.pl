@@ -102,7 +102,12 @@ _HTML_
 	my $date = sprintf('%04d/%02d/%02d',$year,$month,$day);
 	opendir(my $dh,File::Spec->catdir($ddir,$date)) or die "opendir($date):$!";
 	my $prefix = qq|<a href="$path_base?year=$year">$year</a>年<a href="$path_base?year=$year&month=$month">$month</a>月${day}日|;
-	foreach my $d (sort readdir($dh)){
+	foreach my $d (sort{
+			if ("$a $b" =~ /(\d+)\.(\d+) (\d+)\.(\d+)/){
+				return $2 <=> $4 if $1 eq $3;
+			}
+			$a cmp $b
+		} readdir($dh)){
 		next unless $d =~ /^\d+\.\d+/;
 
 		my $path = File::Spec->catfile($ddir,$date,$d);
