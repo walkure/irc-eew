@@ -6,6 +6,7 @@
 use strict;
 use warnings;
 use File::Slurp qw(read_file);
+use File::Spec;
 use CGI::Fast;
 use utf8;
 use lib './lib/';
@@ -70,7 +71,7 @@ _HTML_
 _HTML_
 		return;
 	}
-	unless( -e sprintf('%s/%04d/%02d',$ddir,$year,$month)){
+	unless( -e File::Spec->catdir($ddir,sprintf('%04d/%02d',$year,$month))){
 		opendir(my $dh,"$ddir/$year") or die "opendir($ddir):$!";
 		my $prefix =  qq|<a href="$path_base?year=$year">${year}</a>年|;
 		foreach my $d (sort readdir($dh)){
@@ -84,7 +85,7 @@ _HTML_
 _HTML_
 		return;
 	}
-	unless( -e sprintf('%s/%04d/%02d/%02d',$ddir,$year,$month,$day)){
+	unless( -e File::Spec->catdir($ddir,sprintf('%04d/%02d/%02d',$year,$month,$day))){
 		opendir(my $dh,sprintf('%s/%04d/%02d',$ddir,$year,$month)) or die "opendir($ddir):$!";
 		my $prefix = qq|<a href="$path_base?year=$year">${year}</a>年${month}月|;
 		foreach my $d (sort readdir($dh)){
@@ -98,13 +99,13 @@ _HTML_
 _HTML_
 		return;
 	}
-
-	opendir(my $dh,sprintf('%s/%04d/%02d/%02d',$ddir,$year,$month,$day)) or die "opendir($ddir):$!";
+	my $date = sprintf('%04d/%02d/%02d',$year,$month,$day);
+	opendir(my $dh,File::Spec->catdir($ddir,$date)) or die "opendir($date):$!";
 	my $prefix = qq|<a href="$path_base?year=$year">$year</a>年<a href="$path_base?year=$year&month=$month">$month</a>月${day}日|;
 	foreach my $d (sort readdir($dh)){
 		next unless $d =~ /^\d+\.\d+/;
 
-		my $path = sprintf('%s/%04d/%02d/%02d/%s',$ddir,$year,$month,$day,$d);
+		my $path = File::Spec->catfile($ddir,$date,$d);
 		my $summary = get_eew_summary($path);
 		print qq|<li>$prefix <a href="$path_base$viewer?name=$d">■</a> $summary</li>\n|;
 	}
