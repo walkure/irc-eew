@@ -228,7 +228,8 @@ sub get_fn_from_eqid
     $fpath;
 }
 
-sub get_return_pathquery{
+sub get_return_pathquery
+{
 	my ($base,$eqid) = @_;
 
     my $year = substr($eqid,0,4);
