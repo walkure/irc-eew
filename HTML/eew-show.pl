@@ -50,7 +50,7 @@ sub main
 		exit;
 	}
 
-	unless($fname =~ /\d+\.+/){
+	unless($fname =~ /\d{14}\.\d{1,4}/){
 		print "invalid name\n";
 		exit;
 	}
