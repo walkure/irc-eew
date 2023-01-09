@@ -2,7 +2,10 @@
     "name": "dev",
     "dockerFile": "Dockerfile",
     "postCreateCommand": "./.devcontainer/postCreateCommand.sh",
-    "postStartCommand": "git config --global --add safe.directory ${containerWorkspaceFolder} ; git config --global core.autocrlf input",
+    "postStartCommand": {
+        "safe dir":["git","config","--global","--add","safe.directory","${containerWorkspaceFolder}"],
+        "care crlf":["git","config","--global","core.autocrlf","input"]
+    },
     "extensions": [
         "ms-azuretools.vscode-docker",
         "bscan.perlnavigator"
