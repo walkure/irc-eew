@@ -2,6 +2,7 @@
     "name": "dev",
     "dockerFile": "Dockerfile",
     "postCreateCommand": "chmod +x ./.devcontainer/postCreateCommand.sh ; ./.devcontainer/postCreateCommand.sh",
+    "postStartCommand": "git config --global --add safe.directory ${containerWorkspaceFolder} ; git config --global core.autocrlf input",
     "extensions": [
         "ms-azuretools.vscode-docker",
         "bscan.perlnavigator"
