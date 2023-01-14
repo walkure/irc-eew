@@ -1,5 +1,14 @@
 #set -eux
 
+apk add --no-cache curl bash \
+    perl lighttpd \
+    perl-cgi-fast \
+    perl-http-message \
+    perl-file-slurp \
+    perl-io-socket-ssl \
+    perl-yaml \
+    perl-json
+
 LIBDIR="./lib/Earthquake/EEW"
 if [ ! -d "${LIBDIR}" ]; then
     mkdir -p "${LIBDIR}"
