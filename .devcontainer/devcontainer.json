@@ -2,9 +2,12 @@
     "name": "dev",
     "image": "alpine:3.17.0",
     "features": {
-        "ghcr.io/devcontainers/features/common-utils:2": {}
+        "ghcr.io/devcontainers/features/common-utils:2": {
+            "username": "vscode"
+        }
     },
-    "onCreateCommand": "chmod +x ./.devcontainer/onCreateCommand.sh && ./.devcontainer/onCreateCommand.sh",
+    "containerUser": "vscode",
+    "onCreateCommand": "sudo chmod +x ./.devcontainer/onCreateCommand.sh && sudo ./.devcontainer/onCreateCommand.sh",
     "postStartCommand": {
         "safe dir":["git","config","--global","--add","safe.directory","${containerWorkspaceFolder}"],
         "care crlf":["git","config","--global","core.autocrlf","input"]
