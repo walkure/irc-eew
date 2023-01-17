@@ -1,6 +1,6 @@
 #set -eux
 
-apk add --no-cache curl bash \
+sudo apk add --no-cache curl bash \
     perl lighttpd \
     perl-cgi-fast \
     perl-http-message \

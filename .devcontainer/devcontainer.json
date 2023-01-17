@@ -7,7 +7,7 @@
         }
     },
     "containerUser": "vscode",
-    "onCreateCommand": "sudo chmod +x ./.devcontainer/onCreateCommand.sh && sudo ./.devcontainer/onCreateCommand.sh",
+    "onCreateCommand": "sudo chmod +x ./.devcontainer/onCreateCommand.sh && ./.devcontainer/onCreateCommand.sh",
     "postStartCommand": {
         "safe dir":["git","config","--global","--add","safe.directory","${containerWorkspaceFolder}"],
         "care crlf":["git","config","--global","core.autocrlf","input"]
