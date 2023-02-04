@@ -127,7 +127,7 @@ _HTML_
 
 	if(defined $d->{EBI}){
 		print '<table><tr><td>地域</td><td>予測震度</td><td>予想時刻</td></tr>';
-		foreach my $area (keys %{$d->{EBI}} ){
+		foreach my $area (sort keys %{$d->{EBI}} ){
 			my $ebi = $d->{EBI}{$area};
 
 			my @ar = $ebi->{time} =~ /\d\d/og;
