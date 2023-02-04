@@ -131,8 +131,10 @@ _HTML_
 			my $ebi = $d->{EBI}{$area};
 
 			my @ar = $ebi->{time} =~ /\d\d/og;
-			$ebi->{time} = "$ar[0]:$ar[1]:$ar[2]";
-			$ebi->{time} = '既に到達' if($ebi->{time} eq '::');
+			if(scalar @ar > 0){
+				$ebi->{time} = "$ar[0]:$ar[1]:$ar[2]";
+			}
+			$ebi->{time} = '既に到達' if($ebi->{time} eq '//////' || $ebi->{time} eq '::');
 
 			print '<tr><td>'.$ebi->{name}.'</td><td>震度'.$ebi->{shindo1};
 			if($ebi->{shindo2_code} eq '//'){
