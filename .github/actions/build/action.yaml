@@ -15,7 +15,7 @@ runs:
   using: "Composite"
   steps:
   - name: Log in to the Container registry
-    uses: docker/login-action@v2
+    uses: docker/login-action@v3.1.0
     with:
       registry: ${{ env.REGISTRY }}
       username: ${{ github.actor }}
@@ -23,7 +23,7 @@ runs:
 
   - name: Extract metadata (tags, labels) for Docker
     id: meta
-    uses: docker/metadata-action@v4
+    uses: docker/metadata-action@v5.5.1
     with:
       images: ${{ env.REPOSITORY }}/${{ inputs.artifact }}
       tags: |
@@ -33,7 +33,7 @@ runs:
         type=raw,value=latest
 
   - name: Build and push Docker image
-    uses: docker/build-push-action@v3
+    uses: docker/build-push-action@v5.3.0
     with:
       context: ${{ inputs.context }}
       push: true
