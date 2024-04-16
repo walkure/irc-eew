@@ -35,6 +35,15 @@ my $eewlog = $yaml->{logdir};
 
 if(defined $eewlog){
 	print "++LogDir:[$eewlog]\n";
+	my $tmpdn = sprintf('%s/tmi-%d/',$eewlog,$$);
+	mkdir $tmpdn or die "create a dir($tmpdn) failure:$!";
+	my $tmpfn = sprintf('%s/tmi-%d/tmf-%d',$eewlog,$$,$$);
+	open(my $fh,">$tmpfn") or die "create a file($tmpfn) err:$!";
+	print $fh "TEST\n" or die "write a file err:$!";
+	close $fh;
+	unlink $tmpfn or die "delete a file err:$!";
+	rmdir $tmpdn or die "delete a dir err:$!";
+	print "++LogDir access check OK\n";
 }else{
 	print "++LogDir:N/A not save EEW data\n";
 }
