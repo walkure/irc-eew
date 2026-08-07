@@ -1,10 +1,24 @@
-# Dockerfile.go — Go port of irc-eew (Slack-only). Mirrors the security
-# posture of the original Perl Dockerfile (minimal base, non-root user,
-# Asia/Tokyo localtime baked in). Once the Go port replaces the Perl
-# original in production, this file loses the ".go" suffix and takes over
-# as the repo's canonical Dockerfile.
+# Dockerfile.golang — Go port of irc-eew (Slack-only). FROM scratch: the
+# binary is statically linked (CGO_ENABLED=0) and needs nothing else from
+# an OS layer at runtime.
+#
+# - TLS to Slack's webhooks needs CA certs, so the builder stage's
+#   ca-certificates bundle is copied in directly (no package manager in
+#   scratch to install it with).
+# - Asia/Tokyo localtime (for readable log timestamps) is resolved from the
+#   IANA database embedded in the binary via a `time/tzdata` blank import
+#   (see cmd/eew-notifier/main.go) plus ENV TZ below, rather than copying
+#   /usr/share/zoneinfo — scratch has no filesystem to hold it.
+# - No useradd/adduser is available either, so the non-root user is set by
+#   raw UID:GID (1000:1000); nothing in this program looks up its own
+#   username, so no /etc/passwd entry is needed.
+#
+# Once the Go port replaces the Perl original in production, this file
+# loses the ".golang" suffix and takes over as the repo's canonical
+# Dockerfile.
 
 FROM golang:1.25-alpine AS builder
+RUN apk add --no-cache ca-certificates
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
@@ -12,23 +26,15 @@ COPY cmd ./cmd
 COPY internal ./internal
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/eew-notifier ./cmd/eew-notifier
 
-FROM alpine:3.17.0
-RUN apk add --no-cache \
-	ca-certificates \
-	tzdata && \
-	cp /usr/share/zoneinfo/Asia/Tokyo /etc/localtime && \
-	apk del tzdata
+FROM scratch
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+# Left root-owned (no --chown) so the runtime user (1000:1000, below) can
+# execute it but not modify it.
+COPY --from=builder /out/eew-notifier /usr/src/irc-eew/eew-notifier
 
-RUN addgroup -g 1000 -S nonroot \
-	&& adduser -u 1000 -S nonroot -G nonroot
-USER nonroot
-
+ENV TZ=Asia/Tokyo
+USER 1000:1000
 WORKDIR /usr/src/irc-eew
-COPY --from=builder --chown=nonroot:nonroot /out/eew-notifier /usr/src/irc-eew/eew-notifier
-
-# If you set `TZ=Asia/Tokyo`, system cannot recognize it(and use UTC tz)
-#  because `/usr/share/zoneinfo/Asia/Tokyo` not exists.
-# Also no need to set `TZ=JST-9`.
 
 ENTRYPOINT [ "./eew-notifier" ]
 CMD ["/conf/config.yaml"]

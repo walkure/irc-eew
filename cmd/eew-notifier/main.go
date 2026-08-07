@@ -13,6 +13,12 @@ import (
 	"strings"
 	"syscall"
 
+	// The production image runs FROM scratch (no on-disk zoneinfo files),
+	// so the IANA timezone database is embedded in the binary instead. This
+	// is what lets ENV TZ=Asia/Tokyo (set in Dockerfile.golang) resolve to
+	// a real location rather than falling back to UTC.
+	_ "time/tzdata"
+
 	"github.com/walkure/irc-eew/internal/app"
 	"github.com/walkure/irc-eew/internal/config"
 )
