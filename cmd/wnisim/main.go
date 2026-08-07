@@ -12,7 +12,7 @@ package main
 
 import (
 	"flag"
-	"log"
+	"log/slog"
 	"net"
 	"os"
 	"path/filepath"
@@ -23,6 +23,8 @@ import (
 )
 
 func main() {
+	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stdout, nil)))
+
 	listen := flag.String("listen", ":19000", "address to listen on")
 	dir := flag.String("telegrams-dir", "", "directory of raw telegram files to replay after login (sorted by filename)")
 	interval := flag.Duration("interval", 3*time.Second, "delay between telegrams")
@@ -32,30 +34,35 @@ func main() {
 	flag.Parse()
 
 	if *dir == "" {
-		log.Fatal("-telegrams-dir is required")
+		slog.Error("-telegrams-dir is required")
+		os.Exit(1)
 	}
 
 	files, err := telegramFiles(*dir)
 	if err != nil {
-		log.Fatalf("listing telegrams: %v", err)
+		slog.Error("listing telegrams", "dir", *dir, "error", err)
+		os.Exit(1)
 	}
 	if len(files) == 0 {
-		log.Fatalf("no files found in %s", *dir)
+		slog.Error("no files found", "dir", *dir)
+		os.Exit(1)
 	}
-	log.Printf("loaded %d telegram file(s) from %s", len(files), *dir)
+	slog.Info("loaded telegram files", "count", len(files), "dir", *dir)
 
 	ln, err := net.Listen("tcp", *listen)
 	if err != nil {
-		log.Fatalf("listen %s: %v", *listen, err)
+		slog.Error("listen", "addr", *listen, "error", err)
+		os.Exit(1)
 	}
-	log.Printf("wnisim listening on %s", ln.Addr())
+	slog.Info("wnisim listening", "addr", ln.Addr())
 
 	for {
 		conn, err := ln.Accept()
 		if err != nil {
-			log.Fatalf("accept: %v", err)
+			slog.Error("accept", "error", err)
+			os.Exit(1)
 		}
-		log.Printf("connection from %s", conn.RemoteAddr())
+		slog.Info("connection accepted", "remote_addr", conn.RemoteAddr())
 		handleConn(conn, files, *interval, *keepAlive, *getPingEvery)
 		if *once {
 			return
@@ -85,17 +92,17 @@ func handleConn(conn net.Conn, files []string, interval, keepAlive time.Duration
 
 	headers, err := sess.AwaitLogin(10 * time.Second)
 	if err != nil {
-		log.Printf("login failed: %v", err)
+		slog.Error("login failed", "error", err)
 		return
 	}
-	log.Printf("login received: account=%q id=%q protocol=%q",
-		headers["X-WNI-Account"], headers["X-WNI-ID"], headers["X-WNI-Protocol-Version"])
+	slog.Info("login received",
+		"account", headers["X-WNI-Account"], "id", headers["X-WNI-ID"], "protocol", headers["X-WNI-Protocol-Version"])
 
 	if err := sess.SendResponseOK(); err != nil {
-		log.Printf("send response: %v", err)
+		slog.Error("send response", "error", err)
 		return
 	}
-	log.Printf("sent login Response OK")
+	slog.Info("sent login Response OK")
 
 	stopKeepAlive := make(chan struct{})
 	if keepAlive > 0 {
@@ -108,7 +115,7 @@ func handleConn(conn net.Conn, files []string, interval, keepAlive time.Duration
 					if err := sess.SendKeepAlive(); err != nil {
 						return
 					}
-					log.Printf("sent Keep-Alive")
+					slog.Info("sent Keep-Alive")
 				case <-stopKeepAlive:
 					return
 				}
@@ -120,36 +127,36 @@ func handleConn(conn net.Conn, files []string, interval, keepAlive time.Duration
 	for i, path := range files {
 		if getPingEvery > 0 && i%getPingEvery == 0 {
 			if err := sess.SendGETPing(); err != nil {
-				log.Printf("send GET ping: %v", err)
+				slog.Error("send GET ping", "error", err)
 				return
 			}
-			log.Printf("sent GET / HTTP/1.1 ping, waiting for ack...")
+			slog.Info("sent GET / HTTP/1.1 ping, waiting for ack")
 			if sess.AwaitAck(5 * time.Second) {
-				log.Printf("client acked the GET ping")
+				slog.Info("client acked the GET ping")
 			} else {
-				log.Printf("WARNING: no ack received for GET ping within timeout")
+				slog.Warn("no ack received for GET ping within timeout")
 			}
 			time.Sleep(200 * time.Millisecond)
 		}
 
 		body, err := os.ReadFile(path)
 		if err != nil {
-			log.Printf("read %s: %v", path, err)
+			slog.Error("read telegram file", "path", path, "error", err)
 			continue
 		}
 		if len(body) == 0 {
-			log.Printf("skipping empty file %s", path)
+			slog.Warn("skipping empty file", "path", path)
 			continue
 		}
 		if err := sess.SendData(body); err != nil {
-			log.Printf("send data: %v", err)
+			slog.Error("send data", "error", err)
 			return
 		}
-		log.Printf("sent Data block %d/%d (%s, %d bytes)", i+1, len(files), filepath.Base(path), len(body))
+		slog.Info("sent Data block", "index", i+1, "total", len(files), "file", filepath.Base(path), "bytes", len(body))
 
 		time.Sleep(interval)
 	}
 
-	log.Printf("all telegrams sent; idling (Ctrl+C to stop, or disconnect to test client reconnect)")
+	slog.Info("all telegrams sent; idling (Ctrl+C to stop, or disconnect to test client reconnect)")
 	select {}
 }

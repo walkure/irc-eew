@@ -6,7 +6,7 @@ package app
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"time"
 
 	"github.com/walkure/irc-eew/internal/config"
@@ -41,9 +41,9 @@ func Run(ctx context.Context, cfg *config.Config) error {
 			return fmt.Errorf("app: %w", err)
 		}
 		store = s
-		log.Printf("logdir: %s", cfg.LogDir)
+		slog.Info("logdir enabled", "path", cfg.LogDir)
 	} else {
-		log.Printf("logdir: not set, raw telegrams will not be saved")
+		slog.Info("logdir not set, raw telegrams will not be saved")
 	}
 
 	var allHooks, limitedHooks []slack.Hook
@@ -51,7 +51,7 @@ func Run(ctx context.Context, cfg *config.Config) error {
 		allHooks = toSlackHooks(cfg.Slack.All)
 		limitedHooks = toSlackHooks(cfg.Slack.Limited)
 	}
-	log.Printf("slack: %d 'all' hook(s), %d 'limited' hook(s)", len(allHooks), len(limitedHooks))
+	slog.Info("slack hooks configured", "all", len(allHooks), "limited", len(limitedHooks))
 
 	processor := NewProcessor(store, notify.NewDispatcher(allHooks, limitedHooks))
 	notifier := slack.New()
@@ -64,7 +64,7 @@ func Run(ctx context.Context, cfg *config.Config) error {
 
 	onData := func(md5hex string, body []byte) {
 		result := processor.Process(md5hex, body)
-		log.Printf("received: %s", result.Text)
+		slog.Info("received telegram", "text", result.Text)
 		dispatchToSlack(notifier, result)
 	}
 
@@ -90,10 +90,10 @@ func dispatchToSlack(notifier *slack.Notifier, result ProcessResult) {
 			ctx, cancel := context.WithTimeout(context.Background(), slackSendTimeout)
 			defer cancel()
 			if err := notifier.Send(ctx, hook, result.Text, result.Title); err != nil {
-				log.Printf("slack: %v", err)
+				slog.Error("slack notify failed", "hook", hook.Name, "error", err)
 				return
 			}
-			log.Printf("slack: notified %s", hook.Name)
+			slog.Info("slack notified", "hook", hook.Name)
 		}()
 	}
 }
@@ -110,12 +110,12 @@ func runConnectionLoop(ctx context.Context, creds wni.Credentials, serverOverrid
 	handlers := wni.Handlers{
 		OnData: onData,
 		OnResponse: func(h map[string]string) {
-			log.Printf("wni: login response: %s", h["X-WNI-Result"])
+			slog.Info("wni login response", "result", h["X-WNI-Result"])
 		},
 	}
 	if logKeepAlive {
 		handlers.OnKeepAlive = func() {
-			log.Printf("wni: keep-alive")
+			slog.Info("wni keep-alive")
 		}
 	}
 
@@ -128,7 +128,7 @@ func runConnectionLoop(ctx context.Context, creds wni.Credentials, serverOverrid
 
 		client, addr, err := connectAndLogin(ctx, creds, resolver)
 		if err != nil {
-			log.Printf("wni: %v; retrying in %s", err, backoff)
+			slog.Warn("wni connect failed, retrying", "error", err, "backoff", backoff)
 			if !sleepCtx(ctx, backoff) {
 				return nil
 			}
@@ -136,7 +136,7 @@ func runConnectionLoop(ctx context.Context, creds wni.Credentials, serverOverrid
 			continue
 		}
 
-		log.Printf("wni: connected to %s", addr)
+		slog.Info("wni connected", "addr", addr)
 		backoff = initialBackoff
 
 		runErr := client.Run(ctx, idleTimeout, handlers)
@@ -145,7 +145,7 @@ func runConnectionLoop(ctx context.Context, creds wni.Credentials, serverOverrid
 		if ctx.Err() != nil {
 			return nil
 		}
-		log.Printf("wni: disconnected (%v), reconnecting", runErr)
+		slog.Warn("wni disconnected, reconnecting", "error", runErr)
 	}
 }
 
@@ -207,7 +207,7 @@ func (r *serverResolver) Resolve(ctx context.Context) (string, error) {
 		if len(r.cached) == 0 {
 			return "", err
 		}
-		log.Printf("wni: server list refresh failed (%v), reusing last known list of %d server(s)", err, len(r.cached))
+		slog.Warn("wni server list refresh failed, reusing cached list", "error", err, "cached_count", len(r.cached))
 		return wni.ChooseServer(r.cached), nil
 	}
 
@@ -263,7 +263,7 @@ func (p *Processor) Process(md5hex string, body []byte) ProcessResult {
 	if p.store != nil {
 		tp, err := p.store.WriteTemp(md5hex, body)
 		if err != nil {
-			log.Printf("eewlog: %v", err)
+			slog.Error("eewlog write temp failed", "error", err)
 		} else {
 			tempPath = tp
 		}
@@ -276,9 +276,9 @@ func (p *Processor) Process(md5hex string, body []byte) ProcessResult {
 	if p.store != nil && tempPath != "" {
 		finalPath, err := p.store.Finalize(tempPath, tel.EqID, tel.WarnNum)
 		if err != nil {
-			log.Printf("eewlog: %v", err)
+			slog.Error("eewlog finalize failed", "error", err)
 		} else {
-			log.Printf("eewlog: saved %s", finalPath)
+			slog.Info("eewlog saved", "path", finalPath)
 		}
 	}
 

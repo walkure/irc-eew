@@ -12,7 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
@@ -89,7 +89,7 @@ func (n *Notifier) Send(ctx context.Context, hook Hook, text, username string) e
 		err := n.sendOnce(ctx, hook, payload)
 		if err == nil {
 			if attempt > 1 {
-				log.Printf("slack: %s: succeeded on attempt %d/%d", hook.label(), attempt, maxAttempts)
+				slog.Info("slack retry succeeded", "hook", hook.label(), "attempt", attempt, "max_attempts", maxAttempts)
 			}
 			return nil
 		}
@@ -108,7 +108,7 @@ func (n *Notifier) Send(ctx context.Context, hook Hook, text, username string) e
 			wait = maxRetryWait
 		}
 
-		log.Printf("slack: %s: attempt %d/%d failed (%s), retrying in %s", hook.label(), attempt, maxAttempts, re.status, wait)
+		slog.Warn("slack retry", "hook", hook.label(), "attempt", attempt, "max_attempts", maxAttempts, "status", re.status, "wait", wait)
 
 		select {
 		case <-time.After(wait):

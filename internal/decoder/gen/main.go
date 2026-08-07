@@ -14,7 +14,7 @@ package main
 import (
 	"flag"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"regexp"
 	"sort"
@@ -51,16 +51,20 @@ var tables = []struct {
 var entryRE = regexp.MustCompile(`^\s*(?:'([^']*)'|([A-Za-z0-9_/]+))\s*=>\s*'([^']*)'\s*,?\s*$`)
 
 func main() {
+	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stdout, nil)))
+
 	in := flag.String("in", "", "path to Decoder.pm")
 	out := flag.String("out", "", "path to write the generated Go file")
 	flag.Parse()
 	if *in == "" || *out == "" {
-		log.Fatal("both -in and -out are required")
+		slog.Error("both -in and -out are required")
+		os.Exit(1)
 	}
 
 	src, err := os.ReadFile(*in)
 	if err != nil {
-		log.Fatalf("reading %s: %v", *in, err)
+		slog.Error("reading source", "path", *in, "error", err)
+		os.Exit(1)
 	}
 	lines := strings.Split(string(src), "\n")
 
@@ -72,10 +76,12 @@ func main() {
 	for _, tbl := range tables {
 		entries, err := extractTable(lines, tbl.perlName)
 		if err != nil {
-			log.Fatalf("table %s: %v", tbl.perlName, err)
+			slog.Error("extracting table", "table", tbl.perlName, "error", err)
+			os.Exit(1)
 		}
 		if len(entries) == 0 {
-			log.Fatalf("table %s: no entries found (check the extraction regex against the source)", tbl.perlName)
+			slog.Error("no entries found (check the extraction regex against the source)", "table", tbl.perlName)
+			os.Exit(1)
 		}
 		fmt.Fprintf(&b, "// %s has %d entries, extracted from Perl %%%s.\n", tbl.goName, len(entries), tbl.perlName)
 		fmt.Fprintf(&b, "var %s = map[string]string{\n", tbl.goName)
@@ -88,11 +94,12 @@ func main() {
 			fmt.Fprintf(&b, "\t%q: %q,\n", k, entries[k])
 		}
 		b.WriteString("}\n\n")
-		log.Printf("table %s: %d entries", tbl.perlName, len(entries))
+		slog.Info("extracted table", "table", tbl.perlName, "entries", len(entries))
 	}
 
 	if err := os.WriteFile(*out, []byte(b.String()), 0o644); err != nil {
-		log.Fatalf("writing %s: %v", *out, err)
+		slog.Error("writing output", "path", *out, "error", err)
+		os.Exit(1)
 	}
 }
 

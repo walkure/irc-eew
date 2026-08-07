@@ -10,7 +10,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"time"
 
@@ -20,6 +20,8 @@ import (
 )
 
 func main() {
+	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stdout, nil)))
+
 	webhookURL := flag.String("slack-webhook", "", "if set, POST each formatted message to this Slack incoming-webhook URL")
 	flag.Parse()
 
@@ -36,7 +38,7 @@ func main() {
 	for _, path := range flag.Args() {
 		body, err := os.ReadFile(path)
 		if err != nil {
-			log.Printf("%s: %v", path, err)
+			slog.Error("reading telegram file", "path", path, "error", err)
 			continue
 		}
 
@@ -49,9 +51,9 @@ func main() {
 			err := notifier.Send(ctx, slack.Hook{Name: "eew-replay", URL: *webhookURL}, text, title)
 			cancel()
 			if err != nil {
-				log.Printf("%s: slack send failed: %v", path, err)
+				slog.Error("slack send failed", "path", path, "error", err)
 			} else {
-				log.Printf("%s: sent to Slack", path)
+				slog.Info("sent to Slack", "path", path)
 			}
 		}
 	}
