@@ -66,6 +66,22 @@ func TestDecode_NewReport(t *testing.T) {
 	if tel.CenterDepth != 10 {
 		t.Errorf("CenterDepth: got %d, want 10", tel.CenterDepth)
 	}
+	// RK33433: center=3, depth=3, magnitude=4 — chosen deliberately because
+	// depth and magnitude differ, so a regression that swaps DepthAccurate
+	// with CenterAccurate (the bug found in the Perl viewer, eew-show.pl)
+	// would be caught here too.
+	if tel.CenterAccurateCode != "3" || tel.CenterAccurate != "グリッドサーチ法(3点/4点)" {
+		t.Errorf("CenterAccurate: got %q/%q", tel.CenterAccurateCode, tel.CenterAccurate)
+	}
+	if tel.DepthAccurateCode != "3" || tel.DepthAccurate != "グリッドサーチ法(3点/4点)" {
+		t.Errorf("DepthAccurate: got %q/%q", tel.DepthAccurateCode, tel.DepthAccurate)
+	}
+	if tel.MagnitudeAccurateCode != "4" || tel.MagnitudeAccurate != "P相/全相混在" {
+		t.Errorf("MagnitudeAccurate: got %q/%q", tel.MagnitudeAccurateCode, tel.MagnitudeAccurate)
+	}
+	if tel.IsSeaCode != "0" || tel.IsSea != "陸" {
+		t.Errorf("IsSea: got %q/%q", tel.IsSeaCode, tel.IsSea)
+	}
 	if tel.Magnitude != 6.8 {
 		t.Errorf("Magnitude: got %v, want 6.8", tel.Magnitude)
 	}

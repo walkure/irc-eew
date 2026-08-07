@@ -38,9 +38,13 @@ type Telegram struct {
 	Shindo, ShindoCode     string
 
 	CenterAccurateCode    string
+	CenterAccurate        string
 	DepthAccurateCode     string
+	DepthAccurate         string
 	MagnitudeAccurateCode string
+	MagnitudeAccurate     string
 	IsSeaCode             string
+	IsSea                 string
 	IsWarnded             string
 
 	EBI map[string]EBIEntry
@@ -157,11 +161,15 @@ func tryHypocenter(t *Telegram, line string) bool {
 
 	rk := m[7]
 	t.CenterAccurateCode = charAt(rk, 0)
+	t.CenterAccurate = RK1[t.CenterAccurateCode]
 	t.DepthAccurateCode = charAt(rk, 1)
+	t.DepthAccurate = RK2[t.DepthAccurateCode]
 	t.MagnitudeAccurateCode = charAt(rk, 2)
+	t.MagnitudeAccurate = RK3[t.MagnitudeAccurateCode]
 
 	rt := m[8]
 	t.IsSeaCode = charAt(rt, 0)
+	t.IsSea = RT1[t.IsSeaCode]
 	t.IsWarnded = charAt(rt, 1)
 	return true
 }
