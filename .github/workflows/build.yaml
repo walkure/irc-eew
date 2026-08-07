@@ -64,3 +64,23 @@ jobs:
           artifact: irc-eew
           tag_prefix: go-
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-and-push-eewview-go:
+    name: "Build EEW Viewer (Go port)"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Build and push
+        uses: ./.github/actions/build
+        with:
+          context: .
+          dockerfile: Dockerfile.eew-view.golang
+          artifact: eew-view
+          tag_prefix: go-
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
