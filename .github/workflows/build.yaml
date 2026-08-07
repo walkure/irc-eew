@@ -27,24 +27,6 @@ jobs:
           artifact: irc-eew
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  build-and-push-eewview:
-    name: "Build EEW Viewer"
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-
-      - name: Build and push
-        uses: ./.github/actions/build
-        with:
-          context: ./HTML/
-          artifact: eew-view
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
   build-and-push-receiver-go:
     name: "Build irc-eew (Go port, Slack-only)"
     runs-on: ubuntu-latest
@@ -65,8 +47,8 @@ jobs:
           tag_prefix: go-
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  build-and-push-eewview-go:
-    name: "Build EEW Viewer (Go port)"
+  build-and-push-eewview:
+    name: "Build EEW Viewer"
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -82,5 +64,4 @@ jobs:
           context: .
           dockerfile: Dockerfile.eew-view.golang
           artifact: eew-view
-          tag_prefix: go-
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

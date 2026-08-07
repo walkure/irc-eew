@@ -14,7 +14,20 @@ and Post to IRC/Slack channels.
 
 For Docker: `docker run -it --rm  --mount type=bind,source=/usr/local/irc-eew/config,target=/conf,readonly ghcr.io/walkure/irc-eew:latest`
 
-You can run EEW viewer. for details: `./HTML/`.
+## EEW Viewer
+
+A read-only web viewer for archived EEW telegrams (see `logdir:` above).
+
+`docker run -it --rm -p 8080:8080 --mount type=bind,source=/a/path/to/eewlog,target=/eewlog,readonly ghcr.io/walkure/eew-view:latest`
+
+Configure via environment variables:
+
+|name|default|description|
+|----|-------|-----------|
+|`EEW_DATA_DIR`|`/eewlog/`|path to EEW files|
+|`EEW_PATH_BASE`|`./`|URI path base|
+|`EEW_VIEWER`|`eew-show`|name of the detail-view route|
+|`EEW_LISTEN_ADDR`|`:8080`|address to listen on|
 
 ## Dependencies
 
