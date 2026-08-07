@@ -1,0 +1,34 @@
+# Dockerfile.go — Go port of irc-eew (Slack-only). Mirrors the security
+# posture of the original Perl Dockerfile (minimal base, non-root user,
+# Asia/Tokyo localtime baked in). Once the Go port replaces the Perl
+# original in production, this file loses the ".go" suffix and takes over
+# as the repo's canonical Dockerfile.
+
+FROM golang:1.25-alpine AS builder
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY cmd ./cmd
+COPY internal ./internal
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/eew-notifier ./cmd/eew-notifier
+
+FROM alpine:3.17.0
+RUN apk add --no-cache \
+	ca-certificates \
+	tzdata && \
+	cp /usr/share/zoneinfo/Asia/Tokyo /etc/localtime && \
+	apk del tzdata
+
+RUN addgroup -g 1000 -S nonroot \
+	&& adduser -u 1000 -S nonroot -G nonroot
+USER nonroot
+
+WORKDIR /usr/src/irc-eew
+COPY --from=builder --chown=nonroot:nonroot /out/eew-notifier /usr/src/irc-eew/eew-notifier
+
+# If you set `TZ=Asia/Tokyo`, system cannot recognize it(and use UTC tz)
+#  because `/usr/share/zoneinfo/Asia/Tokyo` not exists.
+# Also no need to set `TZ=JST-9`.
+
+ENTRYPOINT [ "./eew-notifier" ]
+CMD ["/conf/config.yaml"]
