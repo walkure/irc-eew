@@ -1,0 +1,12 @@
+{{define "list.html.tmpl"}}<!DOCTYPE html>
+<html><head><title>list of EEW Data</title>
+<meta charset="utf-8">
+<meta name="robots" content="noindex,nofollow,noarchive" />
+</head>
+<body>
+[<a href="{{.PathBase}}">top</a>]<br>
+<ul>
+{{range .Rows}}<li>{{.}}</li>
+{{end}}</ul>
+</body></html>
+{{end}}

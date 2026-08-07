@@ -1,0 +1,25 @@
+{{define "detail.html.tmpl"}}<!DOCTYPE html>
+<html><head><title>{{.Title}}</title>
+<meta charset="utf-8">
+<meta name="robots" content="noindex,nofollow,noarchive" />
+</head>
+<body>
+[<a href="{{.BackHref}}">戻る</a>]&nbsp;
+{{.Summary}}
+<hr>
+<table>
+{{range .Fields}}<tr><td>{{.Label}}</td><td>{{.Value}}</td></tr>
+{{end}}</table>
+<hr>
+{{if .EBI}}<table>
+<tr><td>地域</td><td>予測震度</td><td>予想時刻</td></tr>
+{{range .EBI}}<tr><td>{{.Name}}</td><td>{{.Shindo}}</td><td>{{.Time}}</td></tr>
+{{end}}</table>
+<hr>
+{{end}}
+{{if .HasMap}}<iframe src="https://maps.google.com/maps?output=embed&amp;q={{.Lat}},{{.Lng}}&amp;t=m&amp;hl=ja&amp;z=7"
+ width="60%" height="50%" frameborder="0" style="border:0;" allowfullscreen=""></iframe>
+{{end}}
+<pre>{{.RawDump}}</pre>
+</body></html>
+{{end}}
