@@ -44,3 +44,23 @@ jobs:
           context: ./HTML/
           artifact: eew-view
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-and-push-receiver-go:
+    name: "Build irc-eew (Go port, Slack-only)"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Build and push
+        uses: ./.github/actions/build
+        with:
+          context: .
+          dockerfile: Dockerfile.golang
+          artifact: irc-eew
+          tag_prefix: go-
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

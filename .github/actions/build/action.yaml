@@ -7,6 +7,14 @@ inputs:
   context:
     description: 'Context Path'
     required: true
+  dockerfile:
+    description: 'Dockerfile name, relative to context'
+    required: false
+    default: 'Dockerfile'
+  tag_prefix:
+    description: 'Prefix prepended to every generated tag (e.g. "go-" to publish as image:go-latest instead of a separate image repo), empty for no prefix'
+    required: false
+    default: ''
   GITHUB_TOKEN:
     description: 'GitHub Access Token'
     required: true
@@ -26,6 +34,7 @@ runs:
     uses: docker/metadata-action@v5.5.1
     with:
       images: ${{ env.REPOSITORY }}/${{ inputs.artifact }}
+      flavor: ${{ inputs.tag_prefix != '' && format('prefix={0},onlatest=true', inputs.tag_prefix) || '' }}
       tags: |
         type=ref,event=branch
         type=semver,pattern={{version}}
@@ -36,6 +45,7 @@ runs:
     uses: docker/build-push-action@v5.3.0
     with:
       context: ${{ inputs.context }}
+      file: ${{ inputs.context }}/${{ inputs.dockerfile }}
       push: true
       tags: ${{ steps.meta.outputs.tags }}
       labels: ${{ steps.meta.outputs.labels }}

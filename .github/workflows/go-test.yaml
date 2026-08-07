@@ -1,0 +1,48 @@
+name: Go build & test
+
+on:
+  push:
+    paths:
+      - 'cmd/**'
+      - 'internal/**'
+      - 'go.mod'
+      - 'go.sum'
+      - 'Dockerfile.golang'
+      - '.github/workflows/go-test.yaml'
+  pull_request:
+    paths:
+      - 'cmd/**'
+      - 'internal/**'
+      - 'go.mod'
+      - 'go.sum'
+      - 'Dockerfile.golang'
+      - '.github/workflows/go-test.yaml'
+
+jobs:
+  test:
+    name: "go build / vet / test"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Build
+        run: go build ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        # The eewlog/ real-telegram corpus used by internal/decoder's
+        # TestDecode_RealCorpus is gitignored and not present in CI — that
+        # test skips itself gracefully (t.Skipf) when the directory is
+        # missing, so this still exercises everything else.
+        run: go test ./...
