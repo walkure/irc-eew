@@ -1,9 +1,9 @@
-# irc-eew // EEW IRC/Slack bot
+# irc-eew // EEW Slack bot
 
 ## なにこれ
 
 Weathernews(WNI)の緊急地震速報(<http://weathernews.jp/quake/html/urgentquake.html>)を受信して
-IRC/Slackへ流す為の単純な何か。
+Slackへ流す為の単純な何か。
 
 ## 使い方
 
@@ -17,9 +17,6 @@ WNIのパスワードをべた書きするのが嫌だったらmd5化してpassw
 
 受信EEW情報を保存するエントリ「logdir:」行をコメントアウトすると、ログを保存しなくなります。
 
-EEW電文はCPANモジュールEarthquake::EEW::Decoderを使ってデコードしています。
-CPANにあるモジュールより、<https://github.com/Magistol/EEWDecoder>の方が新しいようです(このコードではこれを使っています)。
-
 コンテナで動かす場合は以下のような感じで：
 
 `docker run -it --rm  --mount type=bind,source=/usr/local/irc-eew/config,target=/conf,readonly ghcr.io/walkure/irc-eew:1.0.1`
@@ -27,8 +24,7 @@ CPANにあるモジュールより、<https://github.com/Magistol/EEWDecoder>の
 ## ちぅい
 
 WNIのサービスは有料(\315/month)。あと、何か時々第一報が届かないことがある。
-通知先のチャンネル大量にするとIRCサーバの設定如何ではFloodで蹴られるかも。現時点では
-未対策。WNIさん、一つのアカウントで複数ログインしても文句言わないっぽいので、多く通知
+WNIさん、一つのアカウントで複数ログインしても文句言わないっぽいので、多く通知
 したければ複数起動した方が良いかも。
 
 何か時々WNIの通知が遅延することがある。TCPだし仕方ないかも。
