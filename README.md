@@ -5,6 +5,10 @@
 Receive EEW(Earthquake Early Warning) from Weathernews(WNI)'s paid service via TCP
 and Post to Slack channels.
 
+*The name "irc-eew" (and the image name) is a historical artifact from when this
+bot also posted to IRC. IRC support was dropped when this was ported to Go;
+Slack is the only notification target now.
+
 ## How to use
 
 -Write your configucation at config.yaml about WNI EEW and your Slack incoming-webhooks.

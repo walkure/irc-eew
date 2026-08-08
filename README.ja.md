@@ -5,6 +5,9 @@
 Weathernews(WNI)の緊急地震速報(<http://weathernews.jp/quake/html/urgentquake.html>)を受信して
 Slackへ流す為の単純な何か。
 
+※名前(および配布イメージ名)に"irc"が残っているのは、かつてIRCにも通知していた頃の歴史的経緯です。
+Goへの移植でIRC対応は落としており、現在はSlackのみに通知します。
+
 ## 使い方
 
 config.yaml-distを適当に書き換えて、config.yamlにすれば引数指定しなくても読みに行くよ。
