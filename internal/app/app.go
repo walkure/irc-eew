@@ -7,12 +7,14 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/walkure/irc-eew/internal/config"
 	"github.com/walkure/irc-eew/internal/decoder"
 	"github.com/walkure/irc-eew/internal/eewlog"
 	"github.com/walkure/irc-eew/internal/eewmsg"
+	"github.com/walkure/irc-eew/internal/irc"
 	"github.com/walkure/irc-eew/internal/notify"
 	"github.com/walkure/irc-eew/internal/slack"
 	"github.com/walkure/irc-eew/internal/wni"
@@ -56,6 +58,21 @@ func Run(ctx context.Context, cfg *config.Config) error {
 	processor := NewProcessor(store, notify.NewDispatcher(allHooks, limitedHooks))
 	notifier := slack.New()
 
+	ircConns := make([]*irc.Connection, 0, len(cfg.IRC))
+	for _, srv := range cfg.IRC {
+		ircConns = append(ircConns, irc.NewConnection(srv))
+	}
+	slog.Info("irc servers configured", "count", len(ircConns))
+
+	var ircWG sync.WaitGroup
+	for _, conn := range ircConns {
+		ircWG.Add(1)
+		go func(conn *irc.Connection) {
+			defer ircWG.Done()
+			conn.Run(ctx)
+		}(conn)
+	}
+
 	creds := wni.Credentials{
 		User:      cfg.WNIEEW.User,
 		Passwd:    cfg.WNIEEW.Passwd,
@@ -66,9 +83,15 @@ func Run(ctx context.Context, cfg *config.Config) error {
 		result := processor.Process(md5hex, body)
 		slog.Info("received telegram", "text", result.Text)
 		dispatchToSlack(notifier, result)
+		dispatchToIRC(ircConns, result)
 	}
 
-	return runConnectionLoop(ctx, creds, cfg.WNIEEW.ServerOverride, bool(cfg.WNIEEW.Logs.KeepAlive), onData)
+	err := runConnectionLoop(ctx, creds, cfg.WNIEEW.ServerOverride, bool(cfg.WNIEEW.Logs.KeepAlive), onData)
+	// Wait for every IRC connection to finish its own graceful shutdown
+	// (QUIT + Close, triggered by ctx being canceled) before returning, so
+	// the process doesn't exit out from under them.
+	ircWG.Wait()
+	return err
 }
 
 func toSlackHooks(hooks []config.Hook) []slack.Hook {
@@ -95,6 +118,16 @@ func dispatchToSlack(notifier *slack.Notifier, result ProcessResult) {
 			}
 			slog.Info("slack notified", "hook", hook.Name)
 		}()
+	}
+}
+
+// dispatchToIRC hands result to every configured IRC connection's Notify,
+// which does its own channel dispatch and enqueues without blocking (see
+// internal/irc.Connection.Notify/Queue) — unlike dispatchToSlack, no
+// per-call goroutine is needed here since Notify never does I/O itself.
+func dispatchToIRC(conns []*irc.Connection, result ProcessResult) {
+	for _, conn := range conns {
+		conn.Notify(result.Telegram, result.Text)
 	}
 }
 
