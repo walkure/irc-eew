@@ -48,3 +48,23 @@ jobs:
         # test skips itself gracefully (t.Skipf) when the directory is
         # missing, so this still exercises everything else.
         run: go test ./...
+
+  irctest:
+    name: "internal/irc integration test (real IRC daemon)"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      # ubuntu-latest ships a running Docker daemon, which is all
+      # testcontainers-go needs — no extra setup required.
+      - name: Test
+        run: go test -tags irctest ./internal/irc/...
