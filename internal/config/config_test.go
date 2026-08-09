@@ -66,16 +66,30 @@ func TestLoad_DistExample(t *testing.T) {
 	}
 }
 
-func TestLoad_IgnoresUnknownIRCSection(t *testing.T) {
+func TestLoad_IRCSection(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.yaml")
 	yamlText := `
 logdir: ./eewlog
 irc:
- all-notice: "#all"
- server:
-  host: irc.example.jp
-  port: 6667
+ - server:
+    host: irc.example.jp
+    port: 6667
+    charset: iso-2022-jp
+   nick: EEWNotice
+   name: EEWBot
+   desc: Emergency Earthquake Warning
+   all-notice:
+    - "#all"
+    - "#whole"
+   limited-notice:
+    - "#limited"
+ - server:
+    host: irc2.example.jp
+    port: 6697
+   nick: EEWNotice2
+   all-notice:
+    - "#eew"
 slack:
  all:
   - https://example.com/webhook
@@ -89,10 +103,64 @@ WNIEEW:
 
 	cfg, err := config.Load(path)
 	if err != nil {
-		t.Fatalf("Load: %v (an irc: section should be silently ignored, not rejected)", err)
+		t.Fatalf("Load: %v", err)
 	}
 	if cfg.WNIEEW.User != "u" {
 		t.Errorf("WNIEEW.User: got %q", cfg.WNIEEW.User)
+	}
+
+	if len(cfg.IRC) != 2 {
+		t.Fatalf("IRC: got %d servers, want 2", len(cfg.IRC))
+	}
+
+	first := cfg.IRC[0]
+	if first.Server.Host != "irc.example.jp" || first.Server.Port != 6667 {
+		t.Errorf("IRC[0].Server: got %+v", first.Server)
+	}
+	if first.Server.Charset != "iso-2022-jp" {
+		t.Errorf("IRC[0].Server.Charset: got %q", first.Server.Charset)
+	}
+	if first.Nick != "EEWNotice" || first.Name != "EEWBot" || first.Desc != "Emergency Earthquake Warning" {
+		t.Errorf("IRC[0] identity: got %+v", first)
+	}
+	if len(first.AllNotice) != 2 || first.AllNotice[0] != "#all" || first.AllNotice[1] != "#whole" {
+		t.Errorf("IRC[0].AllNotice: got %v", first.AllNotice)
+	}
+	if len(first.LimitedNotice) != 1 || first.LimitedNotice[0] != "#limited" {
+		t.Errorf("IRC[0].LimitedNotice: got %v", first.LimitedNotice)
+	}
+
+	second := cfg.IRC[1]
+	if second.Server.Charset != "" {
+		t.Errorf("IRC[1].Server.Charset: expected empty (defaults to UTF-8 downstream), got %q", second.Server.Charset)
+	}
+}
+
+// TestLoad_RejectsOldStyleIRCSection documents a deliberate compatibility
+// break: irc-eew.pl (and the Go port before it supported IRC at all) used a
+// single `irc:` mapping. Since IRC notification is a new Go-port feature,
+// its config shape is a YAML sequence (multiple servers) from the start, so
+// any old single-object `irc:` block left over in a real config.yaml needs
+// rewriting into the list form rather than continuing to be silently inert.
+func TestLoad_RejectsOldStyleIRCSection(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	yamlText := `
+irc:
+ all-notice: "#all"
+ server:
+  host: irc.example.jp
+  port: 6667
+WNIEEW:
+ user: u
+ passwd: p
+`
+	if err := os.WriteFile(path, []byte(yamlText), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	if _, err := config.Load(path); err == nil {
+		t.Fatal("expected an error for an old-style (single-object) irc: block")
 	}
 }
 

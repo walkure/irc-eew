@@ -20,6 +20,36 @@ type Config struct {
 	LogDir string       `yaml:"logdir"`
 	Slack  *SlackConfig `yaml:"slack"`
 	WNIEEW WNIConfig    `yaml:"WNIEEW"`
+	// IRC lists zero or more IRC servers to notify. Unlike irc-eew.pl (which
+	// only ever supported one `irc:` server block), this is a YAML sequence
+	// so the daemon can join multiple networks. An old Perl-era single-object
+	// `irc:` block (from before the Go port supported IRC at all) will fail
+	// to parse against this shape and needs rewriting into the list form.
+	IRC []IRCServerConfig `yaml:"irc"`
+}
+
+// IRCServerConfig describes one IRC server to connect to and notify.
+type IRCServerConfig struct {
+	Server struct {
+		Host     string `yaml:"host"`
+		Port     int    `yaml:"port"`
+		Password string `yaml:"password"`
+		// Charset names the encoding used for message bodies and channel
+		// names sent to this server ("iso-2022-jp" or "utf-8"/omitted).
+		// Unlike IRCSock.pm (which fell back to ISO-2022-JP, matching the
+		// author's own IRC network at the time), an unset Charset here
+		// defaults to UTF-8 — the more common choice today.
+		Charset string `yaml:"charset"`
+	} `yaml:"server"`
+	Nick string `yaml:"nick"`
+	Name string `yaml:"name"`
+	Desc string `yaml:"desc"`
+	// AllNotice and LimitedNotice list the channels to join and notify.
+	// Perl's config.yaml-dist used a comma-separated string
+	// (`"#all,#whole,#news:*.jp"`); this is a YAML list instead, matching
+	// how Slack hooks are configured.
+	AllNotice     []string `yaml:"all-notice"`
+	LimitedNotice []string `yaml:"limited-notice"`
 }
 
 // SlackConfig lists the "all" (every telegram) and "limited" (first/final/
