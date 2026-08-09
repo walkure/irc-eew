@@ -1,7 +1,6 @@
 // Package eewlog persists raw EEW telegrams to disk, preserving the exact
-// directory/filename layout HTML/eew-show.pl (a separate, out-of-scope
-// FastCGI archive viewer with its own deploy pipeline) depends on to
-// re-read archived telegrams.
+// directory/filename layout internal/eewview (a separate archive viewer
+// with its own deploy pipeline) depends on to re-read archived telegrams.
 package eewlog
 
 import (
@@ -48,8 +47,8 @@ func (s *Store) WriteTemp(md5 string, body []byte) (string, error) {
 }
 
 // FinalPath computes the archival path for a decoded telegram:
-// <dir>/YYYY/MM/DD/<eqID>.<warnNum>. This exactly matches get_fn_from_eqid
-// in both irc-eew.pl and the out-of-scope HTML/eew-show.pl viewer — do not
+// <dir>/YYYY/MM/DD/<eqID>.<warnNum>. This exactly matches irc-eew.pl's
+// get_fn_from_eqid and is also relied on by internal/eewview — do not
 // change this layout without also updating (or coordinating with) that
 // viewer.
 func FinalPath(dir, eqID string, warnNum int) string {

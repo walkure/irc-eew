@@ -30,9 +30,9 @@ func TestOpen_Fails_NonexistentDir(t *testing.T) {
 	}
 }
 
-func TestFinalPath_MatchesHTMLViewerLayout(t *testing.T) {
+func TestFinalPath_MatchesViewerLayout(t *testing.T) {
 	// This must match the real archive layout in eewlog/ exactly (e.g.
-	// eewlog/2011/03/12/20110312042346.81) — HTML/eew-show.pl depends on it.
+	// eewlog/2011/03/12/20110312042346.81) — internal/eewview depends on it.
 	got := eewlog.FinalPath("/data", "20110312042346", 81)
 	want := filepath.Join("/data", "2011", "03", "12", "20110312042346.81")
 	if got != want {

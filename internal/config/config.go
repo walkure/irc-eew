@@ -1,8 +1,6 @@
 // Package config loads the daemon's YAML configuration, matching the shape
-// documented in config.yaml-dist. The `irc:` section has no corresponding
-// field here — yaml.v3 ignores unknown keys by default, so an existing
-// production config.yaml (which still has an irc: section) loads unchanged,
-// with IRC support simply never referenced.
+// documented in config.yaml-dist. The `irc:` section is a list of servers
+// (see IRCServerConfig) — unlike irc-eew.pl, which only ever supported one.
 package config
 
 import (
