@@ -1,18 +1,16 @@
-# irc-eew // EEW Slack bot
+# irc-eew // EEW IRC/Slack bot
 
 ## About
 
 Receive EEW(Earthquake Early Warning) from Weathernews(WNI)'s paid service via TCP
-and Post to Slack channels.
-
-*The name "irc-eew" (and the image name) is a historical artifact from when this
-bot also posted to IRC. IRC support was dropped when this was ported to Go;
-Slack is the only notification target now.
+and Post to IRC/Slack channels.
 
 ## How to use
 
--Write your configucation at config.yaml about WNI EEW and your Slack incoming-webhooks.
+-Write your configucation at config.yaml about WNI EEW and your IRC server(s)/channels or your Slack incoming-webhooks.
 -Start this script.
+
+`irc:` in config.yaml is a list, so you can notify multiple IRC servers (unlike the original Perl version, which only supported one). Each entry's `charset` defaults to UTF-8 if omitted (the original Perl version defaulted to ISO-2022-JP, matching the author's own network at the time); set it to `iso-2022-jp` for a server/channel that still expects that encoding. There's no flood-control on the IRC side, matching the original.
 
 For Docker: `docker run -it --rm  --mount type=bind,source=/usr/local/irc-eew/config,target=/conf,readonly ghcr.io/walkure/irc-eew:latest`
 

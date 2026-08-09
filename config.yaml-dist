@@ -1,6 +1,28 @@
 #if commentout not save EEW log data
 logdir: ./eewlog
 
+# irc: is a list, so you can notify multiple IRC servers. Omit it entirely
+# (or leave it an empty list) to disable IRC notification.
+irc:
+ - server:
+    host: irc.example.jp
+    port: 6667
+#   password: hoge
+#   charset defaults to utf-8 if omitted; set to iso-2022-jp for servers/
+#   channels that still expect that encoding.
+#   charset: iso-2022-jp
+   nick: EEWNotice
+   name: EEWBot
+   desc: Emergency Earthquake Warning
+#  channel,post all EEW messages
+   all-notice:
+    - "#all"
+    - "#whole"
+#  channel,post first/final/cancellation EEW messages only
+   limited-notice:
+    - "#limited"
+    - "#sukoshi"
+
 slack:
  all:
   - a: https://www.example.com/api/webhook

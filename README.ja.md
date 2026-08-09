@@ -1,17 +1,19 @@
-# irc-eew // EEW Slack bot
+# irc-eew // EEW IRC/Slack bot
 
 ## なにこれ
 
 Weathernews(WNI)の緊急地震速報(<http://weathernews.jp/quake/html/urgentquake.html>)を受信して
-Slackへ流す為の単純な何か。
-
-※名前(および配布イメージ名)に"irc"が残っているのは、かつてIRCにも通知していた頃の歴史的経緯です。
-Goへの移植でIRC対応は落としており、現在はSlackのみに通知します。
+IRC/Slackへ流す為の単純な何か。
 
 ## 使い方
 
 config.yaml-distを適当に書き換えて、config.yamlにすれば引数指定しなくても読みに行くよ。
 limited-noticeは第一報と最終報を通知します。all-noticeは全部投げる。
+
+`irc:`はリストなので、複数のIRCサーバへ同時に通知できます（Perl版は1サーバのみ対応でした）。
+各サーバの`charset`は省略するとUTF-8になります（Perl版は当時繋いでいたサーバの都合でISO-2022-JPが既定でした）。
+まだISO-2022-JPを使っているサーバ/チャンネル向けには`charset: iso-2022-jp`を設定してください。
+フラッド対策はIRC側にも入れていません（Perl版と同じ）。
 
 Slackへのincoming-webhookによる通知も`all`と`limited`の2つがあります。
 

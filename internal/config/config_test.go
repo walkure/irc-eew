@@ -64,6 +64,23 @@ func TestLoad_DistExample(t *testing.T) {
 	if cfg.WNIEEW.Logs.Timeout || cfg.WNIEEW.Logs.KeepAlive {
 		t.Errorf("Logs flags: expected both false, got %+v", cfg.WNIEEW.Logs)
 	}
+
+	if len(cfg.IRC) != 1 {
+		t.Fatalf("IRC: got %d servers, want 1", len(cfg.IRC))
+	}
+	ircSrv := cfg.IRC[0]
+	if ircSrv.Server.Host != "irc.example.jp" || ircSrv.Server.Port != 6667 {
+		t.Errorf("IRC[0].Server: got %+v", ircSrv.Server)
+	}
+	if ircSrv.Server.Charset != "" {
+		t.Errorf("IRC[0].Server.Charset: expected empty (commented out, defaults to utf-8), got %q", ircSrv.Server.Charset)
+	}
+	if ircSrv.Nick != "EEWNotice" {
+		t.Errorf("IRC[0].Nick: got %q", ircSrv.Nick)
+	}
+	if len(ircSrv.AllNotice) != 2 || len(ircSrv.LimitedNotice) != 2 {
+		t.Errorf("IRC[0] channel lists: got all=%v limited=%v", ircSrv.AllNotice, ircSrv.LimitedNotice)
+	}
 }
 
 func TestLoad_IRCSection(t *testing.T) {
