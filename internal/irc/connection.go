@@ -17,6 +17,29 @@ import (
 // analogue in irc-eew.pl, which had no backlog concept at all.
 const defaultQueueCapacity = 32
 
+// messageType selects which IRC command a Connection uses to notify a
+// channel.
+type messageType int
+
+const (
+	messageTypeNotice messageType = iota
+	messageTypePrivmsg
+)
+
+// parseMessageType resolves a config.IRCServerConfig.Server.MessageType
+// string. ok is false for an unrecognized non-empty value, in which case
+// the returned messageType is still the safe default (notice).
+func parseMessageType(s string) (mt messageType, ok bool) {
+	switch s {
+	case "", "notice":
+		return messageTypeNotice, true
+	case "privmsg":
+		return messageTypePrivmsg, true
+	default:
+		return messageTypeNotice, false
+	}
+}
+
 const (
 	initialBackoff = 1 * time.Second
 	maxBackoff     = 60 * time.Second
@@ -28,12 +51,13 @@ const (
 // across IRC/WNI/Slack, each Connection owns its own goroutines and never
 // blocks the WNI receive path — see Notify.
 type Connection struct {
-	server     string
-	conn       *goirc.Conn
-	dispatcher *Dispatcher
-	queue      *Queue
-	charset    string
-	reconnect  chan struct{}
+	server      string
+	conn        *goirc.Conn
+	dispatcher  *Dispatcher
+	queue       *Queue
+	charset     string
+	messageType messageType
+	reconnect   chan struct{}
 
 	mu    sync.Mutex
 	ready chan struct{} // closed once JOINed; replaced on every disconnect
@@ -45,15 +69,21 @@ type Connection struct {
 func NewConnection(srv config.IRCServerConfig) *Connection {
 	installLogger()
 
+	mt, ok := parseMessageType(srv.Server.MessageType)
+	if !ok {
+		slog.Error("irc: unknown message-type, defaulting to notice", "server", srv.Server.Host, "message-type", srv.Server.MessageType)
+	}
+
 	conn := goirc.Client(clientConfig(srv))
 	c := &Connection{
-		server:     conn.Config().Server,
-		conn:       conn,
-		dispatcher: NewDispatcher(srv.AllNotice, srv.LimitedNotice),
-		queue:      NewQueue(defaultQueueCapacity),
-		charset:    srv.Server.Charset,
-		reconnect:  make(chan struct{}, 1),
-		ready:      make(chan struct{}),
+		server:      conn.Config().Server,
+		conn:        conn,
+		dispatcher:  NewDispatcher(srv.AllNotice, srv.LimitedNotice),
+		queue:       NewQueue(defaultQueueCapacity),
+		charset:     srv.Server.Charset,
+		messageType: mt,
+		reconnect:   make(chan struct{}, 1),
+		ready:       make(chan struct{}),
 	}
 	conn.HandleFunc(goirc.CONNECTED, c.handleConnected)
 	conn.HandleFunc(goirc.DISCONNECTED, c.handleDisconnected)
@@ -176,13 +206,17 @@ func (c *Connection) writeLoop(ctx context.Context) {
 			slog.Error("irc: encoding notice text", "server", c.server, "error", err)
 			continue
 		}
+		send := c.conn.Notice
+		if c.messageType == messageTypePrivmsg {
+			send = c.conn.Privmsg
+		}
 		for _, ch := range n.Channels {
 			channel, err := EncodeText(c.charset, ch)
 			if err != nil {
 				slog.Error("irc: encoding channel name", "server", c.server, "channel", ch, "error", err)
 				continue
 			}
-			c.conn.Notice(channel, text)
+			send(channel, text)
 		}
 		slog.Info("irc notified", "server", c.server, "channels", n.Channels, "eq_id", n.EqID)
 	}

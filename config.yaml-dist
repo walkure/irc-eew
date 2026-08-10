@@ -11,6 +11,9 @@ irc:
 #   charset defaults to utf-8 if omitted; set to iso-2022-jp for servers/
 #   channels that still expect that encoding.
 #   charset: iso-2022-jp
+#   message-type defaults to notice; set to privmsg if you'd rather it
+#   stand out more in clients that dim/hide notices.
+#   message-type: privmsg
    nick: EEWNotice
    name: EEWBot
    desc: Emergency Earthquake Warning

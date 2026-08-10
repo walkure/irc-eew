@@ -38,6 +38,10 @@ type IRCServerConfig struct {
 		// author's own IRC network at the time), an unset Charset here
 		// defaults to UTF-8 — the more common choice today.
 		Charset string `yaml:"charset"`
+		// MessageType selects the IRC command used to notify a channel:
+		// "notice" (default, matching irc-eew.pl's IRCSock::notice, which is
+		// what eew_callback actually called) or "privmsg".
+		MessageType string `yaml:"message-type"`
 	} `yaml:"server"`
 	Nick string `yaml:"nick"`
 	Name string `yaml:"name"`

@@ -93,6 +93,7 @@ irc:
     host: irc.example.jp
     port: 6667
     charset: iso-2022-jp
+    message-type: privmsg
    nick: EEWNotice
    name: EEWBot
    desc: Emergency Earthquake Warning
@@ -137,6 +138,9 @@ WNIEEW:
 	if first.Server.Charset != "iso-2022-jp" {
 		t.Errorf("IRC[0].Server.Charset: got %q", first.Server.Charset)
 	}
+	if first.Server.MessageType != "privmsg" {
+		t.Errorf("IRC[0].Server.MessageType: got %q", first.Server.MessageType)
+	}
 	if first.Nick != "EEWNotice" || first.Name != "EEWBot" || first.Desc != "Emergency Earthquake Warning" {
 		t.Errorf("IRC[0] identity: got %+v", first)
 	}
@@ -150,6 +154,9 @@ WNIEEW:
 	second := cfg.IRC[1]
 	if second.Server.Charset != "" {
 		t.Errorf("IRC[1].Server.Charset: expected empty (defaults to UTF-8 downstream), got %q", second.Server.Charset)
+	}
+	if second.Server.MessageType != "" {
+		t.Errorf("IRC[1].Server.MessageType: expected empty (defaults to notice downstream), got %q", second.Server.MessageType)
 	}
 }
 

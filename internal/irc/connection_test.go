@@ -91,6 +91,51 @@ func TestConnection_NotifySkipsQueueWhenNoChannelsSelected(t *testing.T) {
 	}
 }
 
+func TestParseMessageType(t *testing.T) {
+	cases := []struct {
+		in     string
+		want   messageType
+		wantOK bool
+	}{
+		{"", messageTypeNotice, true},
+		{"notice", messageTypeNotice, true},
+		{"privmsg", messageTypePrivmsg, true},
+		{"PRIVMSG", messageTypeNotice, false},
+		{"bogus", messageTypeNotice, false},
+	}
+	for _, c := range cases {
+		got, ok := parseMessageType(c.in)
+		if got != c.want || ok != c.wantOK {
+			t.Errorf("parseMessageType(%q) = (%v, %v), want (%v, %v)", c.in, got, ok, c.want, c.wantOK)
+		}
+	}
+}
+
+func TestNewConnection_MessageTypeDefaultsToNotice(t *testing.T) {
+	c := NewConnection(testServerConfig())
+	if c.messageType != messageTypeNotice {
+		t.Errorf("messageType: got %v, want notice (default)", c.messageType)
+	}
+}
+
+func TestNewConnection_MessageTypePrivmsg(t *testing.T) {
+	srv := testServerConfig()
+	srv.Server.MessageType = "privmsg"
+	c := NewConnection(srv)
+	if c.messageType != messageTypePrivmsg {
+		t.Errorf("messageType: got %v, want privmsg", c.messageType)
+	}
+}
+
+func TestNewConnection_UnknownMessageTypeFallsBackToNotice(t *testing.T) {
+	srv := testServerConfig()
+	srv.Server.MessageType = "bogus"
+	c := NewConnection(srv)
+	if c.messageType != messageTypeNotice {
+		t.Errorf("messageType: got %v, want notice (fallback for unrecognized value)", c.messageType)
+	}
+}
+
 func TestSleepCtx_ReturnsFalseOnCancel(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()

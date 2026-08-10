@@ -129,12 +129,13 @@ func waitJoined(t *testing.T, o *observer, channel, nick string) {
 	t.Fatalf("timed out waiting for %s to JOIN %s", nick, channel)
 }
 
-// noticeText extracts the trailing text of a "NOTICE <channel> :<text>"
-// line, as raw bytes. A Go string can hold arbitrary bytes; only rune-aware
-// operations (none used here) would corrupt a non-UTF-8 payload.
-func noticeText(t *testing.T, line, channel string) string {
+// messageText extracts the trailing text of a "<command> <channel> :<text>"
+// line (command is "NOTICE" or "PRIVMSG"), as raw bytes. A Go string can
+// hold arbitrary bytes; only rune-aware operations (none used here) would
+// corrupt a non-UTF-8 payload.
+func messageText(t *testing.T, line, command, channel string) string {
 	t.Helper()
-	marker := "NOTICE " + channel + " :"
+	marker := command + " " + channel + " :"
 	i := strings.Index(line, marker)
 	if i < 0 {
 		t.Fatalf("line %q does not contain %q", line, marker)
@@ -188,7 +189,33 @@ func TestConnection_NotifiesRealServer_UTF8Default(t *testing.T) {
 	conn.Notify(&decoder.Telegram{EqID: "20260809000000", WarnNum: 1}, wantText)
 
 	line := obs.readUntil(t, "NOTICE "+channel)
-	if got := noticeText(t, line, channel); got != wantText {
+	if got := messageText(t, line, "NOTICE", channel); got != wantText {
+		t.Errorf("got %q, want %q", got, wantText)
+	}
+}
+
+func TestConnection_NotifiesRealServer_Privmsg(t *testing.T) {
+	host, port := startErgo(t)
+
+	const channel = "#eew-privmsg"
+	obs := connectObserver(t, net.JoinHostPort(host, port), channel)
+	defer obs.close()
+
+	var srv config.IRCServerConfig
+	srv.Server.Host = host
+	srv.Server.Port = mustAtoi(t, port)
+	srv.Server.MessageType = "privmsg"
+	srv.Nick = "eewbot-p"
+	srv.AllNotice = []string{channel}
+
+	conn := runConnection(t, srv)
+	waitJoined(t, obs, channel, "eewbot-p")
+
+	const wantText = "緊急地震速報 テスト PRIVMSG"
+	conn.Notify(&decoder.Telegram{EqID: "20260809000002", WarnNum: 1}, wantText)
+
+	line := obs.readUntil(t, "PRIVMSG "+channel)
+	if got := messageText(t, line, "PRIVMSG", channel); got != wantText {
 		t.Errorf("got %q, want %q", got, wantText)
 	}
 }
@@ -214,7 +241,7 @@ func TestConnection_NotifiesRealServer_ISO2022JP(t *testing.T) {
 	conn.Notify(&decoder.Telegram{EqID: "20260809000001", WarnNum: 1}, wantText)
 
 	line := obs.readUntil(t, "NOTICE "+channel)
-	raw := noticeText(t, line, channel)
+	raw := messageText(t, line, "NOTICE", channel)
 
 	// ISO-2022-JP is a 7-bit encoding: a real server relaying this to a
 	// plain (non-websocket) client, as here, must never set the high bit.
