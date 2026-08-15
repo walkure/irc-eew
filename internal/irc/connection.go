@@ -43,6 +43,15 @@ func parseMessageType(s string) (mt messageType, ok bool) {
 const (
 	initialBackoff = 1 * time.Second
 	maxBackoff     = 60 * time.Second
+
+	// stableConnectionThreshold is how long a connection must stay up
+	// before Run treats it as a real recovery and resets backoff to
+	// initialBackoff. Without this, a server that accepts a connection
+	// and then kills it almost immediately (observed against a real
+	// network: repeated connect/disconnect roughly once a second) would
+	// make every attempt look "successful" and defeat backoff entirely,
+	// hammering the server for as long as that behavior continues.
+	stableConnectionThreshold = 30 * time.Second
 )
 
 // Connection manages one IRC server: connecting, joining its configured
@@ -108,8 +117,10 @@ func (c *Connection) Notify(t *decoder.Telegram, slackText string) {
 }
 
 // Run connects to the server, reconnecting with capped exponential backoff
-// (reset on every successful connect) until ctx is canceled, at which point
-// it sends QUIT, closes the connection, and returns.
+// until ctx is canceled, at which point it sends QUIT, closes the
+// connection, and returns. Backoff only resets once a connection has stayed
+// up for at least stableConnectionThreshold — a connection that dies sooner
+// than that keeps growing the delay instead, same as a failed connect.
 func (c *Connection) Run(ctx context.Context) {
 	go c.writeLoop(ctx)
 
@@ -126,14 +137,26 @@ func (c *Connection) Run(ctx context.Context) {
 			backoff = nextBackoff(backoff, maxBackoff)
 			continue
 		}
-		backoff = initialBackoff
+		connectedAt := time.Now()
 
 		select {
 		case <-c.reconnect:
-			continue
 		case <-ctx.Done():
 		}
-		break
+		if ctx.Err() != nil {
+			break
+		}
+
+		connectedFor := time.Since(connectedAt)
+		backoff = backoffAfterDisconnect(backoff, connectedFor)
+		if connectedFor >= stableConnectionThreshold {
+			continue
+		}
+
+		slog.Warn("irc connection was short-lived, backing off before retrying", "server", c.server, "uptime", connectedFor, "backoff", backoff)
+		if !sleepCtx(ctx, backoff) {
+			break
+		}
 	}
 
 	if c.conn.Connected() {
@@ -237,4 +260,17 @@ func nextBackoff(cur, max time.Duration) time.Duration {
 		return max
 	}
 	return next
+}
+
+// backoffAfterDisconnect returns the backoff to use for the next connect
+// attempt given how long the just-ended connection stayed up. A connection
+// that was stable for at least stableConnectionThreshold resets to
+// initialBackoff; anything shorter grows cur the same way a failed connect
+// would, so a server that keeps accepting and then instantly dropping us
+// can't defeat backoff by making every attempt look "successful".
+func backoffAfterDisconnect(cur, connectedFor time.Duration) time.Duration {
+	if connectedFor >= stableConnectionThreshold {
+		return initialBackoff
+	}
+	return nextBackoff(cur, maxBackoff)
 }

@@ -154,3 +154,27 @@ func TestNextBackoff_CapsAtMax(t *testing.T) {
 		t.Errorf("got %v, want doubled to 2s", got)
 	}
 }
+
+func TestBackoffAfterDisconnect_GrowsOnShortLivedConnection(t *testing.T) {
+	// A connection that dies well before stableConnectionThreshold must
+	// grow the backoff, not reset it — otherwise a server that accepts
+	// and immediately kills every connection defeats backoff entirely
+	// (observed against a real network: a sub-second connect/disconnect
+	// cycle that never backed off).
+	got := backoffAfterDisconnect(4*time.Second, 500*time.Millisecond)
+	if want := 8 * time.Second; got != want {
+		t.Errorf("got %v, want %v", got, want)
+	}
+}
+
+func TestBackoffAfterDisconnect_ResetsOnStableConnection(t *testing.T) {
+	got := backoffAfterDisconnect(32*time.Second, stableConnectionThreshold)
+	if got != initialBackoff {
+		t.Errorf("got %v, want reset to initialBackoff (%v)", got, initialBackoff)
+	}
+
+	got = backoffAfterDisconnect(32*time.Second, stableConnectionThreshold+time.Hour)
+	if got != initialBackoff {
+		t.Errorf("got %v, want reset to initialBackoff (%v)", got, initialBackoff)
+	}
+}
