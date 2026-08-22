@@ -125,6 +125,103 @@ func TestClient_FullHandshake(t *testing.T) {
 	}
 }
 
+// TestClient_DataThenGETPingCoalescedInOneWrite drives a real wnisim server
+// that sends a Data block's header+body immediately followed, in a single
+// write, by the GET-ping ack-quirk line (wnisim.Session.SendDataThenGETPing)
+// over a real TCP connection via the public Dial/Login/Run API. This is the
+// positive-path (ack write succeeds) counterpart to
+// internal/wni/client_internal_test.go's net.Pipe-based failure-path test:
+// it confirms the coalesced-write shape parses, dispatches, and gets acked
+// correctly end-to-end through a real socket. It deliberately does not try
+// to force the ack write itself to fail — a real socket's write only fails
+// once the OS has processed the peer's RST, a timing race that can't be made
+// deterministic (see client_internal_test.go for why that test uses
+// net.Pipe instead).
+func TestClient_DataThenGETPingCoalescedInOneWrite(t *testing.T) {
+	ln := listen(t)
+
+	serverErr := make(chan error, 1)
+	go func() {
+		conn, err := ln.Accept()
+		if err != nil {
+			serverErr <- err
+			return
+		}
+		defer conn.Close()
+		sess := wnisim.Accept(conn)
+
+		if _, err := sess.AwaitLogin(5 * time.Second); err != nil {
+			serverErr <- err
+			return
+		}
+		if err := sess.SendResponseOK(); err != nil {
+			serverErr <- err
+			return
+		}
+		if err := sess.SendDataThenGETPing([]byte("coalesced telegram body")); err != nil {
+			serverErr <- err
+			return
+		}
+		if !sess.AwaitAck(3 * time.Second) {
+			serverErr <- fmt.Errorf("client did not ack the coalesced GET ping")
+			return
+		}
+		if err := sess.SendKeepAlive(); err != nil {
+			serverErr <- err
+			return
+		}
+		serverErr <- nil
+	}()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	c, err := wni.Dial(ctx, ln.Addr().String())
+	if err != nil {
+		t.Fatalf("Dial: %v", err)
+	}
+	defer c.Close()
+
+	if err := c.Login(wni.Credentials{User: "testuser", Passwd: "secret"}); err != nil {
+		t.Fatalf("Login: %v", err)
+	}
+
+	var gotData []byte
+	var gotKeepAlive bool
+	runErr := make(chan error, 1)
+	go func() {
+		runErr <- c.Run(ctx, 5*time.Second, wni.Handlers{
+			OnData:      func(md5 string, body []byte) { gotData = body },
+			OnKeepAlive: func() { gotKeepAlive = true; cancel() },
+		})
+	}()
+
+	select {
+	case err := <-serverErr:
+		if err != nil {
+			t.Fatalf("server: %v", err)
+		}
+	case <-time.After(8 * time.Second):
+		t.Fatal("server did not finish in time")
+	}
+
+	select {
+	case err := <-runErr:
+		if err != nil && ctx.Err() == nil {
+			t.Fatalf("Run: %v", err)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("Run did not return after cancel")
+	}
+
+	if !bytes.Equal(gotData, []byte("coalesced telegram body")) {
+		t.Errorf("unexpected data: %q", gotData)
+	}
+	if !gotKeepAlive {
+		t.Error("expected OnKeepAlive to fire")
+	}
+}
+
 func TestClient_RunReturnsErrorOnDisconnect(t *testing.T) {
 	ln := listen(t)
 

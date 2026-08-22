@@ -151,6 +151,32 @@ func TestFrameParser_MultipleFramesInOneRead(t *testing.T) {
 	}
 }
 
+func TestFrameParser_DataBodyThenGETPingInSameFeedCall(t *testing.T) {
+	// Reproduces the shared trigger shape behind two historical bugs (see
+	// wnisim.Session.SendDataThenGETPing's doc comment): a Data block's body
+	// arriving in the same batch as trailing bytes right after it — here the
+	// GET-ping quirk line, rather than another block's headers (that variant
+	// is already covered by TestFrameParser_MultipleFramesInOneRead). This
+	// locks in that the already-complete Data frame comes back and the ack
+	// still gets written for this exact shape.
+	var ack bytes.Buffer
+	p := NewFrameParser(&ack)
+
+	body := []byte("telegram-body")
+	combined := append(dataBlockBytes(body, "cafef00d"), []byte("GET / HTTP/1.1\n")...)
+
+	frames, err := p.Feed(combined)
+	if err != nil {
+		t.Fatalf("Feed: %v", err)
+	}
+	if len(frames) != 1 || frames[0].Kind != FrameData || !bytes.Equal(frames[0].Body, body) {
+		t.Fatalf("expected the Data block to parse cleanly, got %+v", frames)
+	}
+	if !bytes.Contains(ack.Bytes(), []byte("200 OK")) {
+		t.Fatalf("expected the trailing GET ping to still be acked, got %q", ack.String())
+	}
+}
+
 func TestFrameParser_IgnoresUnrecognizedStatusLine(t *testing.T) {
 	var ack bytes.Buffer
 	p := NewFrameParser(&ack)

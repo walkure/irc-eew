@@ -130,16 +130,49 @@ func (s *Session) SendGETPing() error {
 	return s.writeRaw([]byte("GET / HTTP/1.1\n"))
 }
 
-// SendData sends a Data block: headers (with Content-Length and an
+// dataBlockHeader builds a Data block's headers (with Content-Length and an
 // X-WNI-Data-MD5 computed the same way the real server does, over the raw
-// body bytes) followed immediately by the raw body.
-func (s *Session) SendData(body []byte) error {
+// body bytes), terminated by the blank line that precedes the body.
+func dataBlockHeader(body []byte) []byte {
 	sum := md5.Sum(body)
-	header := fmt.Sprintf(
+	return []byte(fmt.Sprintf(
 		"X-WNI-ID: Data\nContent-Length: %d\nX-WNI-Data-MD5: %s\n\n",
 		len(body), hex.EncodeToString(sum[:]),
-	)
-	return s.writeRaw(append([]byte(header), body...))
+	))
+}
+
+// SendData sends a Data block: headers followed immediately by the raw body,
+// in a single write.
+func (s *Session) SendData(body []byte) error {
+	return s.writeRaw(append(dataBlockHeader(body), body...))
+}
+
+// SendDataThenGETPing sends a Data block's header+body immediately followed,
+// in a single conn.Write, by the "GET / HTTP/1.1" ack-quirk line — the exact
+// wire shape behind two historical bugs that shared one root cause: a Data
+// block's body arriving in the same read/write batch as trailing bytes right
+// after it.
+//
+// In EEWSock.pm (the original Perl client, since removed from this repo)
+// that shape could stall parse_body forever: it required the receive buffer
+// to be *exactly* Content-Length bytes before firing its data callback, and
+// a trailing GET-ping bundled into the same recv() meant that exact match
+// could never be reached again for that buffer state.
+//
+// In the Go client it instead exposed a narrower bug in Client.Run: frames
+// FrameParser.Feed had already finished parsing before hitting the
+// GET-ping's ack-write failure were discarded along with the error, instead
+// of being dispatched first (see internal/wni/client_internal_test.go).
+//
+// This is the deliberate inverse of SendGETPing, whose own doc comment notes
+// it is sent as an isolated write specifically so it can't coalesce with a
+// following Data block; SendDataThenGETPing exists so tests (and, via
+// cmd/wnisim's -get-ping-mode flag, manual verification against a real
+// client) can reproduce that coalescing on purpose.
+func (s *Session) SendDataThenGETPing(body []byte) error {
+	combined := append(dataBlockHeader(body), body...)
+	combined = append(combined, []byte("GET / HTTP/1.1\n")...)
+	return s.writeRaw(combined)
 }
 
 // Close closes the underlying connection.

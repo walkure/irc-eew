@@ -30,11 +30,21 @@ func main() {
 	interval := flag.Duration("interval", 3*time.Second, "delay between telegrams")
 	keepAlive := flag.Duration("keepalive-interval", 30*time.Second, "interval between Keep-Alive blocks (0 disables)")
 	getPingEvery := flag.Int("get-ping-every", 1, "send the GET / HTTP/1.1 ack quirk before every Nth telegram (0 disables)")
+	getPingMode := flag.String("get-ping-mode", "before",
+		`when to send the GET / HTTP/1.1 ack quirk relative to a Data block: `+
+			`"before" sends it as an isolated write and awaits the ack before sending Data `+
+			`(default, matches production); "coalesced" sends the Data block and the ping `+
+			`together in a single write (reproduces the historical bug-trigger shape, see `+
+			`wnisim.Session.SendDataThenGETPing)`)
 	once := flag.Bool("once", false, "exit after handling a single connection")
 	flag.Parse()
 
 	if *dir == "" {
 		slog.Error("-telegrams-dir is required")
+		os.Exit(1)
+	}
+	if *getPingMode != "before" && *getPingMode != "coalesced" {
+		slog.Error("invalid -get-ping-mode", "value", *getPingMode)
 		os.Exit(1)
 	}
 
@@ -63,7 +73,7 @@ func main() {
 			os.Exit(1)
 		}
 		slog.Info("connection accepted", "remote_addr", conn.RemoteAddr())
-		handleConn(conn, files, *interval, *keepAlive, *getPingEvery)
+		handleConn(conn, files, *interval, *keepAlive, *getPingEvery, *getPingMode)
 		if *once {
 			return
 		}
@@ -86,7 +96,7 @@ func telegramFiles(dir string) ([]string, error) {
 	return files, nil
 }
 
-func handleConn(conn net.Conn, files []string, interval, keepAlive time.Duration, getPingEvery int) {
+func handleConn(conn net.Conn, files []string, interval, keepAlive time.Duration, getPingEvery int, getPingMode string) {
 	defer conn.Close()
 	sess := wnisim.Accept(conn)
 
@@ -125,7 +135,35 @@ func handleConn(conn net.Conn, files []string, interval, keepAlive time.Duration
 	}
 
 	for i, path := range files {
-		if getPingEvery > 0 && i%getPingEvery == 0 {
+		sendPing := getPingEvery > 0 && i%getPingEvery == 0
+
+		body, err := os.ReadFile(path)
+		if err != nil {
+			slog.Error("read telegram file", "path", path, "error", err)
+			continue
+		}
+		if len(body) == 0 {
+			slog.Warn("skipping empty file", "path", path)
+			continue
+		}
+
+		if sendPing && getPingMode == "coalesced" {
+			if err := sess.SendDataThenGETPing(body); err != nil {
+				slog.Error("send coalesced data+GET ping", "error", err)
+				return
+			}
+			slog.Info("sent Data block coalesced with a GET / HTTP/1.1 ping in one write",
+				"index", i+1, "total", len(files), "file", filepath.Base(path), "bytes", len(body))
+			if sess.AwaitAck(5 * time.Second) {
+				slog.Info("client acked the coalesced GET ping")
+			} else {
+				slog.Warn("no ack received for coalesced GET ping within timeout")
+			}
+			time.Sleep(interval)
+			continue
+		}
+
+		if sendPing {
 			if err := sess.SendGETPing(); err != nil {
 				slog.Error("send GET ping", "error", err)
 				return
@@ -139,15 +177,6 @@ func handleConn(conn net.Conn, files []string, interval, keepAlive time.Duration
 			time.Sleep(200 * time.Millisecond)
 		}
 
-		body, err := os.ReadFile(path)
-		if err != nil {
-			slog.Error("read telegram file", "path", path, "error", err)
-			continue
-		}
-		if len(body) == 0 {
-			slog.Warn("skipping empty file", "path", path)
-			continue
-		}
 		if err := sess.SendData(body); err != nil {
 			slog.Error("send data", "error", err)
 			return
