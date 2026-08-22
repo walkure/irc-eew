@@ -97,10 +97,12 @@ func (c *Client) Run(ctx context.Context, idleTimeout time.Duration, h Handlers)
 		if err != nil {
 			return err
 		}
-		frames, err := c.parser.Feed(buf[:n])
-		if err != nil {
-			return err
-		}
+		// Feed can return frames alongside a non-nil error (e.g. the
+		// ack-write for the GET-ping quirk fails after a Data frame earlier
+		// in the same batch already parsed cleanly) — those frames must
+		// still be dispatched before Run returns, or a fully-received
+		// telegram is silently lost instead of just triggering a reconnect.
+		frames, feedErr := c.parser.Feed(buf[:n])
 		for _, f := range frames {
 			switch f.Kind {
 			case FrameData:
@@ -116,6 +118,9 @@ func (c *Client) Run(ctx context.Context, idleTimeout time.Duration, h Handlers)
 					h.OnResponse(f.Header)
 				}
 			}
+		}
+		if feedErr != nil {
+			return feedErr
 		}
 	}
 }
