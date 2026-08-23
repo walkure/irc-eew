@@ -117,6 +117,30 @@ func TestListHandler_DayListingSortAndSummary(t *testing.T) {
 	}
 }
 
+// TestListHandler_DayListingHasBreadcrumbLinks locks in that the deepest
+// (day) listing page links back to the year and year+month levels, matching
+// HTML/index.pl's original `$prefix` (which included `<a href=...>` for both
+// — this was dropped during the Go port and reported by the user as making
+// the day page hard to navigate back from).
+func TestListHandler_DayListingHasBreadcrumbLinks(t *testing.T) {
+	srv := newTestServer(t)
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/?year=2011&month=3&day=12")
+	if err != nil {
+		t.Fatalf("GET: %v", err)
+	}
+	defer resp.Body.Close()
+	body := readBody(t, resp)
+
+	if !strings.Contains(body, `href="./?year=2011"`) {
+		t.Errorf("expected a link back to year=2011, got body: %s", body)
+	}
+	if !strings.Contains(body, `href="./?year=2011&amp;month=3"`) {
+		t.Errorf("expected a link back to year=2011&month=3, got body: %s", body)
+	}
+}
+
 func readBody(t *testing.T, resp *http.Response) string {
 	t.Helper()
 	b, err := io.ReadAll(resp.Body)

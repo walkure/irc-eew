@@ -150,7 +150,9 @@ func listHandler(cfg Config, tmpl *template.Template) http.HandlerFunc {
 			return
 		}
 
-		prefix := fmt.Sprintf("%d年%d月%d日", year, month, day)
+		prefix := link(fmt.Sprintf("%s?year=%d", cfg.PathBase, year), fmt.Sprintf("%d年", year)) +
+			link(fmt.Sprintf("%s?year=%d&month=%d", cfg.PathBase, year, month), fmt.Sprintf("%d月", month)) +
+			template.HTML(escaped(fmt.Sprintf("%d日", day)))
 		entries, err := os.ReadDir(dayDir)
 		if err != nil {
 			http.Error(w, "internal error", http.StatusInternalServerError)
@@ -175,7 +177,7 @@ func listHandler(cfg Config, tmpl *template.Template) http.HandlerFunc {
 			tel := decoder.Decode(body)
 			summary := ListSummaryText(tel)
 			href := fmt.Sprintf("%s%s?name=%s", cfg.PathBase, cfg.ViewerPath, name)
-			rows = append(rows, template.HTML(escaped(prefix))+" "+link(href, "■")+" "+template.HTML(escaped(summary)))
+			rows = append(rows, prefix+" "+link(href, "■")+" "+template.HTML(escaped(summary)))
 		}
 		renderList(w, tmpl, cfg, rows)
 	}
