@@ -116,7 +116,6 @@ type WNIConfig struct {
 	Passwd    string `yaml:"passwd"`
 	PasswdMD5 string `yaml:"passwd-md5"`
 	Logs      struct {
-		Timeout   Flag `yaml:"Timeout"`
 		KeepAlive Flag `yaml:"KeepAlive"`
 	} `yaml:"Logs"`
 	// ServerOverride, if set ("host:port"), skips the real WNI server-list
@@ -128,8 +127,8 @@ type WNIConfig struct {
 }
 
 // Flag is a lenient boolean that accepts YAML `true`/`false` as well as the
-// `1`/`0` integer form config.yaml-dist actually uses for Logs.Timeout /
-// Logs.KeepAlive (Perl's config just checks truthiness of the raw value).
+// `1`/`0` integer form config.yaml-dist actually uses for Logs.KeepAlive
+// (Perl's config just checks truthiness of the raw value).
 type Flag bool
 
 func (f *Flag) UnmarshalYAML(value *yaml.Node) error {

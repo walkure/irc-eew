@@ -61,8 +61,8 @@ func TestLoad_DistExample(t *testing.T) {
 		t.Errorf("WNIEEW.PasswdMD5: expected empty (commented out), got %q", cfg.WNIEEW.PasswdMD5)
 	}
 	// The Logs: block is entirely commented out in the dist file.
-	if cfg.WNIEEW.Logs.Timeout || cfg.WNIEEW.Logs.KeepAlive {
-		t.Errorf("Logs flags: expected both false, got %+v", cfg.WNIEEW.Logs)
+	if cfg.WNIEEW.Logs.KeepAlive {
+		t.Errorf("Logs flags: expected false, got %+v", cfg.WNIEEW.Logs)
 	}
 
 	if len(cfg.IRC) != 1 {
