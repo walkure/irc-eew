@@ -1,6 +1,7 @@
-// Command eew-notifier is the production daemon: connects to WNI's
-// FastCaster EEW feed and posts notifications to configured Slack
-// incoming-webhooks. Slack-only port of irc-eew.pl (IRC support dropped).
+// Command eew-notifier is the production daemon: receives EEW telegrams
+// from DMDATA.JP's WebSocket v2 feed and notifies configured Slack
+// incoming-webhooks and IRC channels. Originally a port of irc-eew.pl,
+// which read WNI's (now discontinued) FastCaster feed.
 package main
 
 import (
