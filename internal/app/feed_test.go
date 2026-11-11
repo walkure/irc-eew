@@ -3,11 +3,13 @@ package app
 import (
 	"bytes"
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/walkure/irc-eew/internal/config"
 	"github.com/walkure/irc-eew/internal/dmdata"
 	"github.com/walkure/irc-eew/internal/dmdatasim"
 	"github.com/walkure/irc-eew/internal/rawarchive"
@@ -38,7 +40,7 @@ func TestFeedLoop_ArchivesAndReconnects(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
-	go func() { defer close(done); runFeedLoop(ctx, client, h) }()
+	go func() { defer close(done); _ = runFeedLoop(ctx, client, h) }()
 	t.Cleanup(func() { cancel(); <-done })
 
 	waitID := func() int {
@@ -77,5 +79,58 @@ func TestFeedLoop_ArchivesAndReconnects(t *testing.T) {
 	}
 	if n := len(srv.StartRequests()); n != 2 {
 		t.Errorf("Socket Start calls = %d, want 2 (one ticket per session)", n)
+	}
+}
+
+// A fatal error must end the loop (so the process exits) instead of being
+// retried forever.
+func TestFeedLoop_FatalErrorStopsLoop(t *testing.T) {
+	const key = "AKe.test"
+	srv := dmdatasim.New(key)
+	t.Cleanup(srv.Close)
+
+	client := &dmdata.Client{
+		API:     dmdata.NewAPI(srv.URL(), key),
+		Request: dmdata.SocketStartRequest{Classifications: []string{"eew.forecast"}, Types: []string{"VXSE45"}},
+	}
+	errc := make(chan error, 1)
+	go func() { errc <- runFeedLoop(context.Background(), client, dmdata.Handlers{}) }()
+
+	id := <-srv.Connected()
+	if err := srv.SendError(id, dmdata.CodeContractTerminated, "contract terminated", true); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case err := <-errc:
+		var se *dmdata.ServerError
+		if !errors.As(err, &se) || se.Code != dmdata.CodeContractTerminated {
+			t.Fatalf("runFeedLoop = %v, want ServerError %d", err, dmdata.CodeContractTerminated)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("loop kept going after a fatal error")
+	}
+	if n := len(srv.StartRequests()); n != 1 {
+		t.Errorf("Socket Start calls = %d, want 1 (no retry after fatal)", n)
+	}
+}
+
+func TestRun_NoContractExitsWithError(t *testing.T) {
+	const key = "AKe.test"
+	srv := dmdatasim.New(key, dmdatasim.WithContracts("telegram.weather"))
+	t.Cleanup(srv.Close)
+
+	cfg := &config.Config{}
+	cfg.DMDATA.APIKey = key
+	cfg.DMDATA.APIBase = srv.URL()
+	errc := make(chan error, 1)
+	go func() { errc <- Run(context.Background(), cfg) }()
+	select {
+	case err := <-errc:
+		var apiErr *dmdata.APIError
+		if !errors.As(err, &apiErr) || apiErr.HTTPStatus != 402 {
+			t.Fatalf("Run = %v, want an error wrapping APIError 402", err)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("Run did not exit on 402")
 	}
 }

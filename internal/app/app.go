@@ -33,8 +33,12 @@ import (
 const slackSendTimeout = 30 * time.Second
 
 // Run wires everything together and runs until ctx is canceled, or returns
-// an error for startup misconfiguration that can't self-heal (no API key,
-// an unwritable archive dir).
+// an error for conditions retrying can't fix: startup misconfiguration (no
+// API key, an unwritable archive dir) or a fatal DMDATA error (bad key, no
+// contract, missing permission, contract terminated...; see
+// dmdata.Classify). The process is expected to exit non-zero on the
+// latter, so a lapsed contract shows up as a crash loop rather than a
+// daemon silently retrying forever.
 //
 // Phase 1 of the DMDATA.JP migration: telegrams are received and archived
 // verbatim, and their metadata logged, but nothing is decoded or notified
@@ -64,12 +68,16 @@ func Run(ctx context.Context, cfg *config.Config) error {
 	}
 	slog.Info("irc servers configured", "count", len(ircConns))
 
+	// IRC connections run on their own context so a fatal feed error can
+	// shut them down gracefully before Run returns.
+	ircCtx, stopIRC := context.WithCancel(ctx)
+	defer stopIRC()
 	var ircWG sync.WaitGroup
 	for _, conn := range ircConns {
 		ircWG.Add(1)
 		go func(conn *irc.Connection) {
 			defer ircWG.Done()
-			conn.Run(ctx)
+			conn.Run(ircCtx)
 		}(conn)
 	}
 
@@ -108,12 +116,16 @@ func Run(ctx context.Context, cfg *config.Config) error {
 		slog.Info("dmdata stale sockets closed at startup", "count", closed)
 	}
 
-	runFeedLoop(ctx, client, handlers)
+	feedErr := runFeedLoop(ctx, client, handlers)
 
 	// Wait for every IRC connection to finish its own graceful shutdown
-	// (QUIT + Close, triggered by ctx being canceled) before returning, so
-	// the process doesn't exit out from under them.
+	// (QUIT + Close, triggered by the context being canceled) before
+	// returning, so the process doesn't exit out from under them.
+	stopIRC()
 	ircWG.Wait()
+	if feedErr != nil {
+		return fmt.Errorf("app: %w", feedErr)
+	}
 	return nil
 }
 
@@ -168,10 +180,16 @@ func handleData(archive *rawarchive.Store, m *dmdata.DataMessage) {
 // loop spin with no delay.
 const stableConnection = 30 * time.Second
 
-// runFeedLoop runs DMDATA sessions back to back until ctx is canceled,
-// waiting with capped exponential backoff (1s..60s) between them. Each
-// session gets a fresh single-use ticket (see dmdata.Client.RunSession).
-func runFeedLoop(ctx context.Context, client *dmdata.Client, h dmdata.Handlers) {
+// runFeedLoop runs DMDATA sessions back to back until ctx is canceled
+// (returning nil) or a session fails with a dmdata.Fatal error (returning
+// it), waiting with capped exponential backoff (1s..60s) between them.
+// Each session gets a fresh single-use ticket (see dmdata.Client.RunSession).
+//
+// A server restart (4503, incl. the monthly maintenance) gets no special
+// backoff treatment: after a normal, long-lived session the stable-
+// connection rule already resets the wait to 1s, while a server answering
+// every new connection with 4503 still gets backed off instead of hammered.
+func runFeedLoop(ctx context.Context, client *dmdata.Client, h dmdata.Handlers) error {
 	const initialBackoff = 1 * time.Second
 	const maxBackoff = 60 * time.Second
 	backoff := initialBackoff
@@ -179,17 +197,26 @@ func runFeedLoop(ctx context.Context, client *dmdata.Client, h dmdata.Handlers) 
 	for ctx.Err() == nil {
 		established, err := client.RunSession(ctx, h)
 		if ctx.Err() != nil {
-			return
+			return nil
+		}
+		severity := dmdata.Classify(err)
+		if severity == dmdata.Fatal {
+			return err // logged once by the caller (cmd/eew-notifier) on exit
 		}
 		if !established.IsZero() && time.Since(established) >= stableConnection {
 			backoff = initialBackoff
 		}
-		slog.Warn("dmdata session ended, reconnecting", "error", err, "backoff", backoff)
+		level := slog.LevelWarn
+		if severity == dmdata.ServerRestart {
+			level = slog.LevelInfo
+		}
+		slog.Log(ctx, level, "dmdata session ended, reconnecting", "error", err, "severity", severity, "backoff", backoff)
 		if !sleepCtx(ctx, backoff) {
-			return
+			return nil
 		}
 		backoff = nextBackoff(backoff, maxBackoff)
 	}
+	return nil
 }
 
 func toSlackHooks(hooks []config.Hook) []slack.Hook {
