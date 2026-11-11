@@ -17,6 +17,9 @@ type Config struct {
 	// Omitted/empty means "don't save EEW data", matching irc-eew.pl.
 	LogDir string       `yaml:"logdir"`
 	Slack  *SlackConfig `yaml:"slack"`
+	// DMDATA configures the DMDATA.JP WebSocket v2 feed (the EEW source
+	// since WNI ended its FastCaster delivery).
+	DMDATA DMDATAConfig `yaml:"dmdata"`
 	// IRC lists zero or more IRC servers to notify. Unlike irc-eew.pl (which
 	// only ever supported one `irc:` server block), this is a YAML sequence
 	// so the daemon can join multiple networks. An old Perl-era single-object
@@ -106,6 +109,65 @@ func (h *Hook) UnmarshalYAML(value *yaml.Node) error {
 	default:
 		return fmt.Errorf("config: unexpected YAML node kind for a slack hook entry at line %d", value.Line)
 	}
+}
+
+// DMDATAConfig mirrors the dmdata: section.
+type DMDATAConfig struct {
+	// APIKey is the DMDATA.JP API key (needs socket.start, socket.close
+	// and the eew.get.* permission for the chosen classification).
+	APIKey string `yaml:"api-key"`
+	// AppName is shown in DMDATA.JP's connection list (max 24 bytes).
+	AppName string `yaml:"app-name"`
+	// Classifications and Types are passed to Socket Start as-is.
+	Classifications []string `yaml:"classifications"`
+	Types           []string `yaml:"types"`
+	// Test is "no" or "including" (receive XML test telegrams too).
+	Test string `yaml:"test"`
+	// FormatMode is "raw" (JMA telegrams as delivered; default) or "json"
+	// (DMDATA's JSON conversion).
+	FormatMode string `yaml:"format-mode"`
+	// ArchiveDir, if set, saves every received data message verbatim (see
+	// internal/rawarchive). Separate from logdir, whose layout belongs to
+	// the legacy WNI archive read by eew-view.
+	ArchiveDir string `yaml:"archive-dir"`
+	// APIBase overrides the REST API root (default https://api.dmdata.jp);
+	// for pointing at internal/dmdatasim during verification only.
+	APIBase string `yaml:"api-base"`
+}
+
+// Defaults applied by WithDefaults when the corresponding field is empty.
+var (
+	DefaultDMDATAClassifications = []string{"eew.forecast"}
+	DefaultDMDATATypes           = []string{"VXSE45"}
+)
+
+const (
+	DefaultDMDATATest       = "no"
+	DefaultDMDATAAppName    = "irc-eew"
+	DefaultDMDATAFormatMode = "raw"
+)
+
+// WithDefaults returns c with unset fields filled in: VXSE45 from the
+// eew.forecast classification, no test telegrams, raw JMA format (XML,
+// pinned explicitly rather than left to the server default), app name
+// "irc-eew".
+func (c DMDATAConfig) WithDefaults() DMDATAConfig {
+	if len(c.Classifications) == 0 {
+		c.Classifications = append([]string(nil), DefaultDMDATAClassifications...)
+	}
+	if len(c.Types) == 0 {
+		c.Types = append([]string(nil), DefaultDMDATATypes...)
+	}
+	if c.Test == "" {
+		c.Test = DefaultDMDATATest
+	}
+	if c.FormatMode == "" {
+		c.FormatMode = DefaultDMDATAFormatMode
+	}
+	if c.AppName == "" {
+		c.AppName = DefaultDMDATAAppName
+	}
+	return c
 }
 
 // Flag is a lenient boolean that accepts YAML `true`/`false` as well as the

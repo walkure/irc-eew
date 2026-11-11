@@ -34,3 +34,18 @@ slack:
  limited:
   - p: https://www.example.net/api/webhook
   - https://www.example.jp/api/webhook
+
+# DMDATA.JP WebSocket v2 feed. api-key is required; the rest are optional.
+dmdata:
+ api-key: AKe.yourapikey
+# app-name: irc-eew
+# classifications defaults to [eew.forecast] and types to [VXSE45]
+# (緊急地震速報（地震動予報）).
+# classifications:
+#  - eew.forecast
+# types:
+#  - VXSE45
+# test: no            # "including" also receives XML test telegrams
+# format-mode: raw    # raw (JMA XML as delivered; default) or json (DMDATA's JSON conversion)
+# save every received data message verbatim; omit to disable.
+ archive-dir: ./dmdatalog

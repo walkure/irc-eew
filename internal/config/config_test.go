@@ -3,6 +3,7 @@ package config_test
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/walkure/irc-eew/internal/config"
@@ -52,6 +53,15 @@ func TestLoad_DistExample(t *testing.T) {
 
 	if len(cfg.Slack.Limited) != 2 {
 		t.Fatalf("Slack.Limited: got %d entries, want 2", len(cfg.Slack.Limited))
+	}
+
+	if cfg.DMDATA.APIKey != "AKe.yourapikey" || cfg.DMDATA.ArchiveDir != "./dmdatalog" {
+		t.Errorf("DMDATA: got %+v", cfg.DMDATA)
+	}
+	d := cfg.DMDATA.WithDefaults()
+	if !slices.Equal(d.Classifications, []string{"eew.forecast"}) || !slices.Equal(d.Types, []string{"VXSE45"}) ||
+		d.Test != "no" || d.AppName != "irc-eew" || d.FormatMode != "raw" {
+		t.Errorf("DMDATA defaults: got %+v", d)
 	}
 
 	if len(cfg.IRC) != 1 {
