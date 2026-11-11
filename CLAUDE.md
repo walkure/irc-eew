@@ -4,21 +4,21 @@
 
 ## このプロジェクトは何か
 
-Weathernews(WNI)の有料緊急地震速報(EEW)配信サービス「FastCaster」をTCPで受信し、Slack/IRCへ通知するボット。元はPerl実装(`irc-eew.pl`)だったが、**Go実装が現在の正典であり、Perl版・PerlのCGIビューア(`HTML/`)は共に完全に削除済み**（git履歴には残っている）。リポジトリ名・配布イメージ名の「irc」は、当時IRCにも通知していた頃の歴史的経緯（後述）。
+緊急地震速報(EEW)を受信し、Slack/IRCへ通知するボット。受信元は元々Weathernews(WNI)の有料配信「FastCaster」だったが、WNIの配信終了に伴い**DMDATA.JPのWebSocket v2 APIへ移行中**（`dmdata`ブランチ、後述「DMDATA移行」）。元はPerl実装(`irc-eew.pl`)だったが、**Go実装が現在の正典であり、Perl版・PerlのCGIビューア(`HTML/`)は共に完全に削除済み**（git履歴には残っている）。リポジトリ名・配布イメージ名の「irc」は、当時IRCにも通知していた頃の歴史的経緯（後述）。
 
 ## アーキテクチャ
 
 `cmd/`に薄いエントリポイント、`internal/`に実処理を置く構成。
 
 ```text
-cmd/eew-notifier/   本体デーモン(WNI受信 → Slack/IRC通知)
+cmd/eew-notifier/   本体デーモン(DMDATA受信 → Slack/IRC通知)
 cmd/eew-view/       EEWアーカイブの閲覧用Webビューア(元HTML/index.pl+eew-show.pl)
 cmd/eew-replay/     開発/検証用: 保存済みテレグラムをdecode→format→(任意で)Slack送信
-cmd/wnisim/         開発/検証用: WNI FastCasterプロトコルを模擬するフェイクサーバ
 
-internal/wni/       WNI FastCaster疑似HTTPプロトコルのクライアント実装
-internal/wnisim/    wnisimが使うフェイクサーバの実体（wni側のテストからも共用）
-internal/decoder/   EEW電文デコーダ（tables_gen.goはPerl版Decoder.pmから生成した対照表）
+internal/dmdata/    DMDATA.JP API v2クライアント（Socket Start/Close + WebSocket v2受信）
+internal/dmdatasim/ テスト用のフェイクDMDATAサーバ（チケット使い捨て・ping/pong・接続枠を再現）
+internal/rawarchive/ DMDATAのdataメッセージを受信したまま保存（eewlogとは別レイアウト）
+internal/decoder/   旧コード電文(WNI時代)のEEWデコーダ（tables_gen.goはPerl版Decoder.pmから生成した対照表）
 internal/eewmsg/    デコード済みテレグラム → Slack向けメッセージ整形
 internal/eewlog/    生テレグラムのアーカイブ保存（ディレクトリ/ファイル名レイアウトはeew-viewと共有契約）
 internal/slack/     Slack incoming-webhook送信（リトライ・レート制限対応）
@@ -54,7 +54,7 @@ go test ./...
 - `logdir:` — 生テレグラムの保存先。省略するとアーカイブ無効。
 - `irc:` — **YAMLの配列**（複数IRCサーバに対応、Perl版は単一サーバのみだった）。各要素は`server.{host,port,password,charset,message-type}` / `nick` / `name` / `desc` / `all-notice` / `limited-notice`（いずれもYAMLリスト）。`charset`未設定時は**UTF-8**がデフォルト（Perl版は`iso-2022-jp`が暗黙デフォルトだったが、意図的に変更済み・ユーザー承認済み）。`message-type`は`notice`（既定、Perl版の`IRCSock::notice`と同じ）または`privmsg`。
 - `slack:` — `all`/`limited`の2階層。`all`は常に全報通知、`limited`は新規地震/最終報/取消のみ。
-- `WNIEEW:` — WNI認証情報。
+- `dmdata:` — DMDATA.JPのAPIキー、受信区分(既定`eew.forecast`)・種別(既定`VXSE45`)、`archive-dir`（生データ保存先）等。
 
 **古いPerl形式の`irc:`（単一マッピング）は今は意図的にエラーになる**（`internal/config/config_test.go`の`TestLoad_RejectsOldStyleIRCSection`が仕様として明記）。IRC対応が存在しなかった頃のGo版は`irc:`セクションを無視していたが、今は実際にパースする。
 
@@ -121,6 +121,16 @@ go test ./...
 ### 設定ファイル
 
 - `WNIEEW.Logs.Timeout`: Perl版では`send_ack()`が呼ばれるたび（サーバーからの定期pingにackを返す度）に診断ログを1行出すだけのデバッグ用トグルで、実質的な意味は無かった。Go移植時にパースはされたがどこにも配線されておらず、機能していなかった。**今回の調査で発見し、フィールドごと削除**（`Logs.KeepAlive`は引き続き有効）。
+
+## DMDATA移行（進行中）
+
+WNIのFastCaster配信が終了したため、WNI関連コード（`internal/wni`・`internal/wnisim`・`cmd/wnisim`・`WNIEEW:`設定）は削除済み（git履歴には残っている）。以下の「Perl版との既知の差異一覧」のうちWNIプロトコル関連の項目は経緯として残している。
+
+- 受信: VXSE45（緊急地震速報（地震動予報）、区分`eew.forecast`）のみ。VXSE44は二重通知回避のため使わない。
+- DMDATAはEEWを気象庁XML（`formatMode: raw`）かDMDATA独自JSON（`formatMode: json`）で配信し、旧コード電文は（ドキュメント上は）配信されない。実際の受信内容は未確認の前提で進めている。`format-mode`は`raw`（気象庁XML原本）で受信する（ユーザー決定、既定値として明示固定）。
+- Slack/IRCへ流す文面は既存フォーマット（`internal/eewmsg`）を踏襲する（ユーザー要望）。XMLから再現できない差異が出る場合は個別に報告して判断を仰ぐ。
+- 段階: (1)受信+生データ保存のみ・通知なし ← 現在 / (2)実データを見て解析+通知 / (3)保存形式確定+eew-view対応 / (4)docs・Docker・本番切替。
+- 生データは`data`メッセージ全体を受信したまま保存する方針（ユーザー承認済み）。閲覧用の派生形式（CBOR等）が要れば段階3で検討。
 
 ## Windows開発環境での注意点
 
