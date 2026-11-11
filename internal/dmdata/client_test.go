@@ -269,6 +269,24 @@ func TestRunSession_ConnectionLimit(t *testing.T) {
 	}
 }
 
+// If only a close frame arrives (no preceding error message), its status
+// code must still be classified like the error message would have been.
+func TestRunSession_CloseFrameCodeIsClassified(t *testing.T) {
+	srv := dmdatasim.New(testKey)
+	t.Cleanup(srv.Close)
+
+	s := runSession(t, newClient(srv))
+	id := waitConnected(t, srv)
+	if err := srv.CloseWithCode(id, dmdata.CodeContractTerminated, "contract terminated"); err != nil {
+		t.Fatal(err)
+	}
+	waitDone(t, s)
+	var se *dmdata.ServerError
+	if !errors.As(s.err, &se) || se.Code != dmdata.CodeContractTerminated || dmdata.Classify(s.err) != dmdata.Fatal {
+		t.Fatalf("err = %v, want fatal ServerError %d", s.err, dmdata.CodeContractTerminated)
+	}
+}
+
 func TestRunSession_NoContractIsFatal(t *testing.T) {
 	srv := dmdatasim.New(testKey, dmdatasim.WithContracts("telegram.weather"))
 	t.Cleanup(srv.Close)

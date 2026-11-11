@@ -109,6 +109,17 @@ func (c *Client) RunSession(ctx context.Context, h Handlers) (established time.T
 		conn.Close(websocket.StatusNormalClosure, "")
 		return established, nil
 	}
+	var se *ServerError
+	if errors.As(err, &se) && se.Code == CodeConnectionLimit {
+		// Refused at connect time for lack of a slot: free our own socket
+		// first, then any leftovers of a previous run, so the next session
+		// has a chance.
+		conn.CloseNow()
+		c.closeSocket(socketID)
+		if _, cerr := c.CloseStale(context.WithoutCancel(ctx)); cerr != nil {
+			slog.Warn("dmdata stale socket cleanup failed", "error", cerr)
+		}
+	}
 	return established, err
 }
 
@@ -189,6 +200,13 @@ func (c *Client) readLoop(ctx context.Context, conn *websocket.Conn, h Handlers)
 		if err != nil {
 			if idleExpired {
 				return fmt.Errorf("websocket: no message for %s", idle)
+			}
+			// The server normally sends an `error` message before closing
+			// (handled in handle). If only the close frame arrived, its
+			// status carries the same code, so classify it the same way.
+			var ce websocket.CloseError
+			if errors.As(err, &ce) && ce.Code >= 4000 {
+				return &ServerError{ErrorMessage{Error: ce.Reason, Code: int(ce.Code), Close: true}}
 			}
 			return fmt.Errorf("websocket read: %w", err)
 		}
