@@ -35,6 +35,8 @@ type Server struct {
 	pingInterval time.Duration
 	maxSockets   int
 	listPageSize int
+	// contracts, if non-nil, limits which classifications are granted.
+	contracts []string
 
 	mu      sync.Mutex
 	nextID  int
@@ -82,6 +84,14 @@ func WithPingInterval(d time.Duration) Option { return func(s *Server) { s.pingI
 // WithMaxSockets caps simultaneous sockets (default 2); Socket Start beyond
 // it answers 409 like the real service.
 func WithMaxSockets(n int) Option { return func(s *Server) { s.maxSockets = n } }
+
+// WithContracts limits the account's contracted classifications (default:
+// everything requested is granted). Socket Start answers 402 when none of
+// the requested ones is contracted and otherwise grants only those that
+// are, mirroring how the real service reports granted classifications.
+func WithContracts(classifications ...string) Option {
+	return func(s *Server) { s.contracts = append([]string{}, classifications...) }
+}
 
 // WithListPageSize caps Socket List pages below the client's limit, to
 // exercise nextToken pagination.
@@ -190,6 +200,19 @@ func (s *Server) handleStart(w http.ResponseWriter, r *http.Request) {
 	if len(req.Classifications) == 0 {
 		writeAPIError(w, http.StatusBadRequest, "At least one element of `classifications` is required.")
 		return
+	}
+	if s.contracts != nil {
+		var granted []string
+		for _, c := range req.Classifications {
+			if slices.Contains(s.contracts, c) {
+				granted = append(granted, c)
+			}
+		}
+		if len(granted) == 0 {
+			writeAPIError(w, http.StatusPaymentRequired, "No contract.")
+			return
+		}
+		req.Classifications = granted
 	}
 	if req.Test == "" {
 		req.Test = "no"
@@ -551,6 +574,16 @@ func (s *Server) SendError(id int, code int, text string, close bool) error {
 		sk.conn.Close(websocket.StatusCode(code), text)
 	}
 	return nil
+}
+
+// CloseWithCode closes socket id with a close frame carrying code, without
+// sending an `error` message first.
+func (s *Server) CloseWithCode(id int, code int, reason string) error {
+	sk, err := s.get(id)
+	if err != nil {
+		return err
+	}
+	return sk.conn.Close(websocket.StatusCode(code), reason)
 }
 
 // Drop abruptly closes socket id's connection without a close frame or
