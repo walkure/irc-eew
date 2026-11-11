@@ -252,12 +252,76 @@ func TestRunSession_ConnectionLimit(t *testing.T) {
 	srv := dmdatasim.New(testKey, dmdatasim.WithMaxSockets(1))
 	t.Cleanup(srv.Close) // registered first so it runs after sessions end
 
-	runSession(t, newClient(srv))
-	waitConnected(t, srv)
+	// The slot is held by a live session of a different app, which the
+	// 409 cleanup must leave alone.
+	other := newClient(srv)
+	other.Request.AppName = "someone-else"
+	runSession(t, other)
+	id := waitConnected(t, srv)
 
 	_, err := newClient(srv).RunSession(context.Background(), dmdata.Handlers{})
 	var apiErr *dmdata.APIError
 	if !errors.As(err, &apiErr) || apiErr.HTTPStatus != 409 {
 		t.Fatalf("err = %v, want APIError 409", err)
+	}
+	if slices.Contains(srv.ClosedSockets(), id) {
+		t.Error("closed another app's socket")
+	}
+}
+
+// A previous run that died without Socket Close left this app's slot
+// held; on 409 the client must close it and get a session.
+func TestRunSession_409ClosesOwnStaleSocketAndRetries(t *testing.T) {
+	srv := dmdatasim.New(testKey, dmdatasim.WithMaxSockets(1))
+	t.Cleanup(srv.Close)
+
+	stale := srv.Reserve("irc-eew-test")
+	s := runSession(t, newClient(srv))
+	waitConnected(t, srv)
+	if !slices.Contains(srv.ClosedSockets(), stale) {
+		t.Errorf("stale socket %d not closed (closed: %v)", stale, srv.ClosedSockets())
+	}
+	select {
+	case <-s.done:
+		t.Fatalf("session ended: %v", s.err)
+	default:
+	}
+}
+
+func TestCloseStale_OnlyOwnAppAndFollowsPagination(t *testing.T) {
+	srv := dmdatasim.New(testKey, dmdatasim.WithMaxSockets(10), dmdatasim.WithListPageSize(2))
+	t.Cleanup(srv.Close)
+
+	var mine []int
+	for range 3 {
+		mine = append(mine, srv.Reserve("irc-eew-test"))
+	}
+	theirs := srv.Reserve("other-app")
+	noName := srv.Reserve("")
+
+	closed, err := newClient(srv).CloseStale(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := srv.ClosedSockets()
+	slices.Sort(got)
+	if closed != 3 || !slices.Equal(got, mine) {
+		t.Errorf("closed %d sockets %v, want %v", closed, got, mine)
+	}
+	if srv.OpenSockets() != 2 {
+		t.Errorf("open sockets = %d, want 2 (ids %d, %d kept)", srv.OpenSockets(), theirs, noName)
+	}
+}
+
+func TestCloseStale_EmptyAppNameDoesNothing(t *testing.T) {
+	srv := dmdatasim.New(testKey)
+	t.Cleanup(srv.Close)
+	srv.Reserve("")
+
+	c := newClient(srv)
+	c.Request.AppName = ""
+	closed, err := c.CloseStale(context.Background())
+	if err != nil || closed != 0 || len(srv.ClosedSockets()) != 0 {
+		t.Fatalf("closed %d, err %v, server closed %v", closed, err, srv.ClosedSockets())
 	}
 }

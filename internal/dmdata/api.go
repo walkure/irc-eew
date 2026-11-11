@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -152,6 +153,71 @@ func (a *API) CloseSocket(ctx context.Context, id SocketID) error {
 	}
 	_, err := a.do(ctx, http.MethodDelete, "/v2/socket/"+string(id), nil)
 	return err
+}
+
+// SocketInfo is one Socket List v2 item.
+type SocketInfo struct {
+	ID              SocketID `json:"id"`
+	Classifications []string `json:"classifications"`
+	Types           []string `json:"types"`
+	Test            string   `json:"test"`
+	AppName         *string  `json:"appName"`
+	// Status is "waiting" (ticket issued, not connected / expired),
+	// "open" (connected), or "closed".
+	Status    string  `json:"status"`
+	Start     string  `json:"start"`
+	End       *string `json:"end"`
+	Ping      *string `json:"ping"`
+	IPAddress *string `json:"ipAddress"`
+	Server    *string `json:"server"`
+}
+
+type socketListResponse struct {
+	Status    string       `json:"status"`
+	Items     []SocketInfo `json:"items"`
+	NextToken string       `json:"nextToken"`
+}
+
+// maxListPages bounds ListSockets' pagination in case the server keeps
+// handing out cursors.
+const maxListPages = 50
+
+// ListSockets calls Socket List v2, following nextToken until every item
+// has been fetched. status filters by state ("waiting", "open", "closed");
+// empty lists all.
+func (a *API) ListSockets(ctx context.Context, status string) ([]SocketInfo, error) {
+	var all []SocketInfo
+	cursor := ""
+	for range maxListPages {
+		q := url.Values{}
+		q.Set("limit", "100")
+		if cursor != "" {
+			// Whether status still applies alongside a cursor isn't
+			// documented; it's resent anyway, and callers re-check
+			// SocketInfo.Status themselves.
+			q.Set("cursorToken", cursor)
+		}
+		if status != "" {
+			q.Set("status", status)
+		}
+		respBody, err := a.do(ctx, http.MethodGet, "/v2/socket?"+q.Encode(), nil)
+		if err != nil {
+			return nil, err
+		}
+		var resp socketListResponse
+		if err := json.Unmarshal(respBody, &resp); err != nil {
+			return nil, fmt.Errorf("dmdata api: decoding socket list response: %w", err)
+		}
+		if resp.Status != "ok" {
+			return nil, fmt.Errorf("dmdata api: socket list returned status %q", resp.Status)
+		}
+		all = append(all, resp.Items...)
+		if resp.NextToken == "" {
+			return all, nil
+		}
+		cursor = resp.NextToken
+	}
+	return all, fmt.Errorf("dmdata api: socket list exceeded %d pages", maxListPages)
 }
 
 func (a *API) do(ctx context.Context, method, path string, body []byte) ([]byte, error) {

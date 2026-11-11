@@ -64,8 +64,22 @@ func (e *ServerError) Error() string {
 // was never opened. On return the socket's slot is released via Socket
 // Close (best effort), so a dead connection doesn't keep holding it until
 // the server's ping timeout.
+//
+// If Socket Start is refused because every connection slot is taken (409),
+// RunSession closes this app's stale sockets (see CloseStale) and tries
+// Socket Start once more.
 func (c *Client) RunSession(ctx context.Context, h Handlers) (established time.Time, err error) {
 	start, err := c.API.StartSocket(ctx, c.Request)
+	var apiErr *APIError
+	if errors.As(err, &apiErr) && apiErr.HTTPStatus == 409 {
+		closed, cerr := c.CloseStale(ctx)
+		if cerr != nil {
+			slog.Warn("dmdata stale socket cleanup failed", "error", cerr)
+		}
+		if closed > 0 {
+			start, err = c.API.StartSocket(ctx, c.Request)
+		}
+	}
 	if err != nil {
 		return time.Time{}, fmt.Errorf("socket start: %w", err)
 	}
@@ -93,6 +107,54 @@ func (c *Client) RunSession(ctx context.Context, h Handlers) (established time.T
 		return established, nil
 	}
 	return established, err
+}
+
+// CloseStale closes every "open" or "waiting" socket whose appName equals
+// c.Request.AppName — left behind when a previous run of this app died
+// without calling Socket Close, and otherwise holding a connection slot
+// until the server's ping timeout (open) or ticket expiry (waiting).
+//
+// It must only be called while this Client has no session of its own
+// running. It does nothing when AppName is empty, since that would match
+// other applications' sockets on the same account. Running two instances
+// (e.g. shadow and production) with the same AppName on one account would
+// make them close each other's sockets: give each its own AppName.
+func (c *Client) CloseStale(ctx context.Context) (closed int, err error) {
+	app := c.Request.AppName
+	if app == "" {
+		return 0, nil
+	}
+	// Query each live state separately: an unfiltered list would page
+	// through the account's whole closed-socket history.
+	var items []SocketInfo
+	for _, status := range []string{"open", "waiting"} {
+		got, err := c.API.ListSockets(ctx, status)
+		if err != nil {
+			return 0, fmt.Errorf("socket list (%s): %w", status, err)
+		}
+		items = append(items, got...)
+	}
+	var errs []error
+	for _, it := range items {
+		if it.AppName == nil || *it.AppName != app {
+			continue
+		}
+		if it.Status != "open" && it.Status != "waiting" {
+			continue
+		}
+		cerr := c.API.CloseSocket(ctx, it.ID)
+		var apiErr *APIError
+		switch {
+		case cerr == nil:
+			closed++
+			slog.Info("dmdata stale socket closed", "socket_id", it.ID, "status", it.Status, "start", it.Start)
+		case errors.As(cerr, &apiErr) && apiErr.HTTPStatus == 404:
+			// Went away on its own in the meantime.
+		default:
+			errs = append(errs, fmt.Errorf("closing socket %s: %w", it.ID, cerr))
+		}
+	}
+	return closed, errors.Join(errs...)
 }
 
 func (c *Client) closeSocket(id SocketID) {
