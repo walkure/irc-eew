@@ -1,6 +1,9 @@
-// Package app wires config, the WNI client, the decoder/formatter, and the
-// Slack notifier together into the running daemon, porting irc-eew.pl's
-// main loop (minus everything IRC-related).
+// Package app wires config, the upstream EEW feed client, the
+// decoder/formatter, and the Slack/IRC notifiers together into the running
+// daemon.
+//
+// TODO(dmdata): the upstream feed was WNI FastCaster until it was shut
+// down; it is being replaced by DMDATA.JP's WebSocket v2 API.
 package app
 
 import (
@@ -17,14 +20,7 @@ import (
 	"github.com/walkure/irc-eew/internal/irc"
 	"github.com/walkure/irc-eew/internal/notify"
 	"github.com/walkure/irc-eew/internal/slack"
-	"github.com/walkure/irc-eew/internal/wni"
 )
-
-// idleTimeout matches irc-eew.pl's `can_read(60 * 3.5)` (210s) select
-// timeout. Unlike the Perl original (which treats this as fatal and exits,
-// relying on an external restart policy), reaching it here just triggers a
-// reconnect — see runConnectionLoop.
-const idleTimeout = 210 * time.Second
 
 // slackSendTimeout bounds one hook's Send call including any internal
 // retries on 429/5xx (see internal/slack.Notifier.Send) — generous enough
@@ -73,12 +69,6 @@ func Run(ctx context.Context, cfg *config.Config) error {
 		}(conn)
 	}
 
-	creds := wni.Credentials{
-		User:      cfg.WNIEEW.User,
-		Passwd:    cfg.WNIEEW.Passwd,
-		PasswdMD5: cfg.WNIEEW.PasswdMD5,
-	}
-
 	onData := func(md5hex string, body []byte) {
 		result := processor.Process(md5hex, body)
 		slog.Info("received telegram", "text", result.Text)
@@ -86,7 +76,12 @@ func Run(ctx context.Context, cfg *config.Config) error {
 		dispatchToIRC(ircConns, result)
 	}
 
-	err := runConnectionLoop(ctx, creds, cfg.WNIEEW.ServerOverride, bool(cfg.WNIEEW.Logs.KeepAlive), onData)
+	// TODO(dmdata): run the DMDATA.JP WebSocket receive loop here, calling
+	// onData for each EEW telegram. Until then the daemon only keeps its IRC
+	// connections up.
+	_ = onData
+	<-ctx.Done()
+	var err error
 	// Wait for every IRC connection to finish its own graceful shutdown
 	// (QUIT + Close, triggered by ctx being canceled) before returning, so
 	// the process doesn't exit out from under them.
@@ -103,7 +98,7 @@ func toSlackHooks(hooks []config.Hook) []slack.Hook {
 }
 
 // dispatchToSlack fires one goroutine per hook so a slow or unreachable
-// webhook can never stall the WNI read loop (which calls onData
+// webhook can never stall the feed read loop (which calls onData
 // synchronously) — unlike Perl's select()-multiplexed one-shot sockets,
 // Go's http.Client.Do blocks its calling goroutine.
 func dispatchToSlack(notifier *slack.Notifier, result ProcessResult) {
@@ -129,123 +124,6 @@ func dispatchToIRC(conns []*irc.Connection, result ProcessResult) {
 	for _, conn := range conns {
 		conn.Notify(result.Telegram, result.Text)
 	}
-}
-
-// runConnectionLoop owns the WNI connection lifecycle: fetch a server,
-// connect, log in, read until disconnect/idle-timeout/error, then retry
-// with capped exponential backoff (reset on every successful connect+login)
-// — unlike Perl's unbounded, backoff-free retry loop.
-func runConnectionLoop(ctx context.Context, creds wni.Credentials, serverOverride string, logKeepAlive bool, onData func(md5 string, body []byte)) error {
-	const initialBackoff = 1 * time.Second
-	const maxBackoff = 60 * time.Second
-	backoff := initialBackoff
-
-	handlers := wni.Handlers{
-		OnData: onData,
-		OnResponse: func(h map[string]string) {
-			slog.Info("wni login response", "result", h["X-WNI-Result"])
-		},
-	}
-	if logKeepAlive {
-		handlers.OnKeepAlive = func() {
-			slog.Info("wni keep-alive")
-		}
-	}
-
-	resolver := &serverResolver{override: serverOverride}
-
-	for {
-		if ctx.Err() != nil {
-			return nil
-		}
-
-		client, addr, err := connectAndLogin(ctx, creds, resolver)
-		if err != nil {
-			slog.Warn("wni connect failed, retrying", "error", err, "backoff", backoff)
-			if !sleepCtx(ctx, backoff) {
-				return nil
-			}
-			backoff = nextBackoff(backoff, maxBackoff)
-			continue
-		}
-
-		slog.Info("wni connected", "addr", addr)
-		backoff = initialBackoff
-
-		runErr := client.Run(ctx, idleTimeout, handlers)
-		client.Close()
-
-		if ctx.Err() != nil {
-			return nil
-		}
-		slog.Warn("wni disconnected, reconnecting", "error", runErr)
-	}
-}
-
-// connectAndLogin resolves a server address, dials it, and logs in — a
-// single failure-checked unit so runConnectionLoop's retry logic stays flat.
-func connectAndLogin(ctx context.Context, creds wni.Credentials, resolver *serverResolver) (*wni.Client, string, error) {
-	addr, err := resolver.Resolve(ctx)
-	if err != nil {
-		return nil, "", err
-	}
-
-	client, err := wni.Dial(ctx, addr)
-	if err != nil {
-		return nil, "", err
-	}
-
-	if err := client.Login(creds); err != nil {
-		client.Close()
-		return nil, "", fmt.Errorf("login: %w", err)
-	}
-
-	return client, addr, nil
-}
-
-// serverResolver resolves the WNI relay server address to connect to next.
-//
-// If override is set (see config.WNIConfig.ServerOverride, used to point at
-// a test/fake WNI server), it's always returned unchanged.
-//
-// Otherwise it fetches a fresh server list from WNI on every call — so a
-// long-running process picks up relay-set changes over time, unlike the
-// Perl original which fetches the list exactly once at startup and reuses
-// it for every reconnect — but falls back to the last successfully fetched
-// list if the refresh fails, since a transient outage of the list endpoint
-// shouldn't by itself prevent reconnecting to relay servers that may still
-// be perfectly reachable.
-type serverResolver struct {
-	override string
-	cached   []string
-	// fetch is overridable for tests; nil means fetch from the real WNI
-	// server-list endpoint.
-	fetch func(ctx context.Context) ([]string, error)
-}
-
-func (r *serverResolver) Resolve(ctx context.Context) (string, error) {
-	if r.override != "" {
-		return r.override, nil
-	}
-
-	fetch := r.fetch
-	if fetch == nil {
-		fetch = func(ctx context.Context) ([]string, error) {
-			return wni.FetchServerList(ctx, wni.ServerListURL)
-		}
-	}
-
-	servers, err := fetch(ctx)
-	if err != nil {
-		if len(r.cached) == 0 {
-			return "", err
-		}
-		slog.Warn("wni server list refresh failed, reusing cached list", "error", err, "cached_count", len(r.cached))
-		return wni.ChooseServer(r.cached), nil
-	}
-
-	r.cached = servers
-	return wni.ChooseServer(servers), nil
 }
 
 func sleepCtx(ctx context.Context, d time.Duration) bool {

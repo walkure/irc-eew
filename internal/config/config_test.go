@@ -54,17 +54,6 @@ func TestLoad_DistExample(t *testing.T) {
 		t.Fatalf("Slack.Limited: got %d entries, want 2", len(cfg.Slack.Limited))
 	}
 
-	if cfg.WNIEEW.User != "username" || cfg.WNIEEW.Passwd != "bar" {
-		t.Errorf("WNIEEW: got %+v", cfg.WNIEEW)
-	}
-	if cfg.WNIEEW.PasswdMD5 != "" {
-		t.Errorf("WNIEEW.PasswdMD5: expected empty (commented out), got %q", cfg.WNIEEW.PasswdMD5)
-	}
-	// The Logs: block is entirely commented out in the dist file.
-	if cfg.WNIEEW.Logs.KeepAlive {
-		t.Errorf("Logs flags: expected false, got %+v", cfg.WNIEEW.Logs)
-	}
-
 	if len(cfg.IRC) != 1 {
 		t.Fatalf("IRC: got %d servers, want 1", len(cfg.IRC))
 	}
@@ -111,9 +100,6 @@ irc:
 slack:
  all:
   - https://example.com/webhook
-WNIEEW:
- user: u
- passwd: p
 `
 	if err := os.WriteFile(path, []byte(yamlText), 0o644); err != nil {
 		t.Fatalf("WriteFile: %v", err)
@@ -123,10 +109,6 @@ WNIEEW:
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if cfg.WNIEEW.User != "u" {
-		t.Errorf("WNIEEW.User: got %q", cfg.WNIEEW.User)
-	}
-
 	if len(cfg.IRC) != 2 {
 		t.Fatalf("IRC: got %d servers, want 2", len(cfg.IRC))
 	}
@@ -175,9 +157,6 @@ irc:
  server:
   host: irc.example.jp
   port: 6667
-WNIEEW:
- user: u
- passwd: p
 `
 	if err := os.WriteFile(path, []byte(yamlText), 0o644); err != nil {
 		t.Fatalf("WriteFile: %v", err)

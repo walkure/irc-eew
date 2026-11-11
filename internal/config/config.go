@@ -17,7 +17,6 @@ type Config struct {
 	// Omitted/empty means "don't save EEW data", matching irc-eew.pl.
 	LogDir string       `yaml:"logdir"`
 	Slack  *SlackConfig `yaml:"slack"`
-	WNIEEW WNIConfig    `yaml:"WNIEEW"`
 	// IRC lists zero or more IRC servers to notify. Unlike irc-eew.pl (which
 	// only ever supported one `irc:` server block), this is a YAML sequence
 	// so the daemon can join multiple networks. An old Perl-era single-object
@@ -107,23 +106,6 @@ func (h *Hook) UnmarshalYAML(value *yaml.Node) error {
 	default:
 		return fmt.Errorf("config: unexpected YAML node kind for a slack hook entry at line %d", value.Line)
 	}
-}
-
-// WNIConfig mirrors the WNIEEW: section (WNI FastCaster login credentials).
-type WNIConfig struct {
-	User string `yaml:"user"`
-	// Passwd is used verbatim (then MD5-hashed) unless PasswdMD5 is set.
-	Passwd    string `yaml:"passwd"`
-	PasswdMD5 string `yaml:"passwd-md5"`
-	Logs      struct {
-		KeepAlive Flag `yaml:"KeepAlive"`
-	} `yaml:"Logs"`
-	// ServerOverride, if set ("host:port"), skips the real WNI server-list
-	// HTTP fetch and always connects there instead. Has no equivalent in
-	// the Perl original; exists for pointing the daemon at a test/fake WNI
-	// server (e.g. internal/wnisim) during verification or shadow-mode
-	// rollout, never needed against the real production service.
-	ServerOverride string `yaml:"server-override"`
 }
 
 // Flag is a lenient boolean that accepts YAML `true`/`false` as well as the
