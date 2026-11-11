@@ -269,6 +269,35 @@ func TestRunSession_ConnectionLimit(t *testing.T) {
 	}
 }
 
+func TestRunSession_NoContractIsFatal(t *testing.T) {
+	srv := dmdatasim.New(testKey, dmdatasim.WithContracts("telegram.weather"))
+	t.Cleanup(srv.Close)
+
+	_, err := newClient(srv).RunSession(context.Background(), dmdata.Handlers{})
+	var apiErr *dmdata.APIError
+	if !errors.As(err, &apiErr) || apiErr.HTTPStatus != 402 || dmdata.Classify(err) != dmdata.Fatal {
+		t.Fatalf("err = %v, want fatal APIError 402", err)
+	}
+}
+
+// A partial grant (some requested classification not contracted) must not
+// leave a silent connection behind: fatal, and the socket released.
+func TestRunSession_PartialGrantIsFatal(t *testing.T) {
+	srv := dmdatasim.New(testKey, dmdatasim.WithContracts("eew.forecast"))
+	t.Cleanup(srv.Close)
+
+	c := newClient(srv)
+	c.Request.Classifications = []string{"eew.forecast", "eew.warning"}
+	_, err := c.RunSession(context.Background(), dmdata.Handlers{})
+	var ge *dmdata.GrantError
+	if !errors.As(err, &ge) || dmdata.Classify(err) != dmdata.Fatal {
+		t.Fatalf("err = %v, want fatal GrantError", err)
+	}
+	if srv.OpenSockets() != 0 {
+		t.Errorf("socket left open after a refused grant")
+	}
+}
+
 // A previous run that died without Socket Close left this app's slot
 // held; on 409 the client must close it and get a session.
 func TestRunSession_409ClosesOwnStaleSocketAndRetries(t *testing.T) {

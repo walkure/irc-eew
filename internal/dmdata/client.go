@@ -85,6 +85,9 @@ func (c *Client) RunSession(ctx context.Context, h Handlers) (established time.T
 	}
 	socketID := start.WebSocket.ID
 	defer c.closeSocket(socketID)
+	if err := checkGrant(c.Request, start); err != nil {
+		return time.Time{}, err
+	}
 
 	protocols := start.WebSocket.Protocol
 	if len(protocols) == 0 {
