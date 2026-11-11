@@ -3,6 +3,7 @@ module github.com/walkure/irc-eew
 go 1.25.3
 
 require (
+	github.com/coder/websocket v1.8.15
 	github.com/fluffle/goirc v1.3.5
 	github.com/testcontainers/testcontainers-go v0.44.0
 	golang.org/x/text v0.40.0
