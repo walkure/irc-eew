@@ -97,6 +97,17 @@ func Run(ctx context.Context, cfg *config.Config) error {
 		},
 	}
 
+	// A previous run that died without Socket Close (SIGKILL, OOM, node
+	// loss) may still hold a connection slot; release it up front instead
+	// of waiting out the server's ping timeout. Failure (e.g. the key lacks
+	// socket.list) is not fatal: the 409 path in RunSession retries it, and
+	// the slot frees itself eventually anyway.
+	if closed, err := client.CloseStale(ctx); err != nil {
+		slog.Warn("dmdata stale socket cleanup failed", "error", err)
+	} else if closed > 0 {
+		slog.Info("dmdata stale sockets closed at startup", "count", closed)
+	}
+
 	runFeedLoop(ctx, client, handlers)
 
 	// Wait for every IRC connection to finish its own graceful shutdown

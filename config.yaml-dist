@@ -35,9 +35,12 @@ slack:
   - p: https://www.example.net/api/webhook
   - https://www.example.jp/api/webhook
 
-# DMDATA.JP WebSocket v2 feed. api-key is required; the rest are optional.
+# DMDATA.JP WebSocket v2 feed. api-key is required (permissions: socket.start,
+# socket.list, socket.close, eew.get.forecast); the rest are optional.
 dmdata:
  api-key: AKe.yourapikey
+# app-name must differ between instances sharing one API key (e.g. shadow vs
+# production): sockets left open under this name are closed at startup.
 # app-name: irc-eew
 # classifications defaults to [eew.forecast] and types to [VXSE45]
 # (緊急地震速報（地震動予報）).

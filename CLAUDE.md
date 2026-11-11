@@ -130,6 +130,7 @@ WNIのFastCaster配信が終了したため、WNI関連コード（`internal/wni
 - DMDATAはEEWを気象庁XML（`formatMode: raw`）かDMDATA独自JSON（`formatMode: json`）で配信し、旧コード電文は（ドキュメント上は）配信されない。実際の受信内容は未確認の前提で進めている。`format-mode`は`raw`（気象庁XML原本）で受信する（ユーザー決定、既定値として明示固定）。
 - Slack/IRCへ流す文面は既存フォーマット（`internal/eewmsg`）を踏襲する（ユーザー要望）。XMLから再現できない差異が出る場合は個別に報告して判断を仰ぐ。
 - 段階: (1)受信+生データ保存のみ・通知なし ← 現在 / (2)実データを見て解析+通知 / (3)保存形式確定+eew-view対応 / (4)docs・Docker・本番切替。
+- 起動時と接続数上限(409)時に、同じ`app-name`で残っている`open`/`waiting`ソケットをSocket List→Socket Closeで掃除する（前回プロセスが異常終了した場合の枠解放）。**同じAPIキーでshadowと本番を同時に動かすときは`app-name`を必ず分けること**（同名だと互いの接続を切る）。APIキーに必要な権限: `socket.start`・`socket.list`・`socket.close`・`eew.get.forecast`。
 - 生データは`data`メッセージ全体を受信したまま保存する方針（ユーザー承認済み）。閲覧用の派生形式（CBOR等）が要れば段階3で検討。
 
 ## Windows開発環境での注意点

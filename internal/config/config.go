@@ -116,7 +116,10 @@ type DMDATAConfig struct {
 	// APIKey is the DMDATA.JP API key (needs socket.start, socket.close
 	// and the eew.get.* permission for the chosen classification).
 	APIKey string `yaml:"api-key"`
-	// AppName is shown in DMDATA.JP's connection list (max 24 bytes).
+	// AppName is shown in DMDATA.JP's connection list (max 24 bytes). It
+	// also identifies this app's own leftover sockets, which are closed at
+	// startup and on a connection-limit (409) refusal — so instances
+	// sharing an API key (e.g. shadow and production) need distinct names.
 	AppName string `yaml:"app-name"`
 	// Classifications and Types are passed to Socket Start as-is.
 	Classifications []string `yaml:"classifications"`
