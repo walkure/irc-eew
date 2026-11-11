@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -33,6 +34,7 @@ type Server struct {
 	apiKey       string
 	pingInterval time.Duration
 	maxSockets   int
+	listPageSize int
 
 	mu      sync.Mutex
 	nextID  int
@@ -56,8 +58,13 @@ type StartRequest struct {
 }
 
 type socket struct {
-	id      int
-	req     StartRequest
+	id  int
+	req StartRequest
+	// opened is set once a WebSocket connected on this socket's ticket;
+	// before that Socket List reports it "waiting", after it "open" (even
+	// after an unclean disconnect, until Socket Close).
+	opened  bool
+	start   time.Time
 	conn    *websocket.Conn
 	cancel  context.CancelFunc
 	lastPID string
@@ -76,6 +83,10 @@ func WithPingInterval(d time.Duration) Option { return func(s *Server) { s.pingI
 // it answers 409 like the real service.
 func WithMaxSockets(n int) Option { return func(s *Server) { s.maxSockets = n } }
 
+// WithListPageSize caps Socket List pages below the client's limit, to
+// exercise nextToken pagination.
+func WithListPageSize(n int) Option { return func(s *Server) { s.listPageSize = n } }
+
 // New starts a fake that accepts apiKey.
 func New(apiKey string, opts ...Option) *Server {
 	s := &Server{
@@ -91,6 +102,7 @@ func New(apiKey string, opts ...Option) *Server {
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /v2/socket", s.handleStart)
+	mux.HandleFunc("GET /v2/socket", s.handleList)
 	mux.HandleFunc("DELETE /v2/socket/{id}", s.handleClose)
 	mux.HandleFunc("GET /v2/websocket", s.handleWebSocket)
 	s.HTTP = httptest.NewServer(mux)
@@ -187,7 +199,7 @@ func (s *Server) handleStart(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.mu.Lock()
-	if len(s.sockets)+len(s.tickets) >= s.maxSockets {
+	if len(s.sockets) >= s.maxSockets {
 		s.mu.Unlock()
 		writeAPIError(w, http.StatusConflict, "The maximum number of simultaneous connections is full.")
 		return
@@ -196,7 +208,7 @@ func (s *Server) handleStart(w http.ResponseWriter, r *http.Request) {
 	s.nextID++
 	ticket := "Tik" + randHex(16)
 	s.tickets[ticket] = id
-	s.sockets[id] = &socket{id: id, req: req}
+	s.sockets[id] = &socket{id: id, req: req, start: time.Now()}
 	s.starts = append(s.starts, req)
 	s.mu.Unlock()
 
@@ -226,6 +238,102 @@ func (s *Server) handleStart(w http.ResponseWriter, r *http.Request) {
 		"formats":         formats,
 		"appName":         appName,
 	})
+}
+
+// Reserve occupies a connection slot as if a previous process with appName
+// had connected and then died without Socket Close, and returns its id.
+func (s *Server) Reserve(appName string) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	id := s.nextID
+	s.nextID++
+	s.sockets[id] = &socket{
+		id:     id,
+		req:    StartRequest{Classifications: []string{"eew.forecast"}, Test: "no", AppName: appName, FormatMode: "raw"},
+		opened: true,
+		start:  time.Now(),
+	}
+	return id
+}
+
+func (s *Server) handleList(w http.ResponseWriter, r *http.Request) {
+	if !s.authorized(r) {
+		writeAPIError(w, http.StatusUnauthorized, "Unauthorized.")
+		return
+	}
+	q := r.URL.Query()
+	limit := 20
+	if v, err := strconv.Atoi(q.Get("limit")); err == nil && v > 0 && v <= 100 {
+		limit = v
+	}
+	if s.listPageSize > 0 && s.listPageSize < limit {
+		limit = s.listPageSize
+	}
+	offset := 0
+	if c := q.Get("cursorToken"); c != "" {
+		v, err := strconv.Atoi(strings.TrimPrefix(c, "cur"))
+		if err != nil {
+			writeAPIError(w, http.StatusBadRequest, "Invalid cursorToken.")
+			return
+		}
+		offset = v
+	}
+	want := q.Get("status")
+
+	s.mu.Lock()
+	ids := make([]int, 0, len(s.sockets))
+	for id := range s.sockets {
+		ids = append(ids, id)
+	}
+	slices.Sort(ids)
+	var items []map[string]any
+	for _, id := range ids {
+		sk := s.sockets[id]
+		status := "waiting"
+		if sk.opened {
+			status = "open"
+		}
+		if want != "" && want != status {
+			continue
+		}
+		var appName any
+		if sk.req.AppName != "" {
+			appName = sk.req.AppName
+		}
+		items = append(items, map[string]any{
+			"id":              id,
+			"ticket":          nil,
+			"classifications": sk.req.Classifications,
+			"types":           sk.req.Types,
+			"test":            sk.req.Test,
+			"formats":         []string{"xml", "a/n", "binary"},
+			"appName":         appName,
+			"status":          status,
+			"start":           sk.start.UTC().Format(time.RFC3339Nano),
+			"end":             nil,
+			"ping":            nil,
+			"ipAddress":       "127.0.0.1",
+			"server":          "dmdatasim",
+		})
+	}
+	s.mu.Unlock()
+
+	resp := map[string]any{
+		"responseId":   randHex(8),
+		"responseTime": time.Now().UTC().Format(time.RFC3339Nano),
+		"status":       "ok",
+	}
+	offset = min(offset, len(items))
+	end := min(offset+limit, len(items))
+	page := items[offset:end]
+	if page == nil {
+		page = []map[string]any{}
+	}
+	resp["items"] = page
+	if end < len(items) {
+		resp["nextToken"] = "cur" + strconv.Itoa(end)
+	}
+	writeJSON(w, http.StatusOK, resp)
 }
 
 func (s *Server) handleClose(w http.ResponseWriter, r *http.Request) {
@@ -287,6 +395,7 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	sk.conn = conn
 	sk.cancel = cancel
+	sk.opened = true
 	s.mu.Unlock()
 	// A clean close (close frame) or Socket Close frees the slot at once.
 	// An unclean disconnect leaves it held, like the real service does
