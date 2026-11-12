@@ -249,3 +249,43 @@ func TestRecentSet(t *testing.T) {
 		t.Error("LRU eviction order wrong")
 	}
 }
+
+// The richer elements the viewer shows, from JMA's 豊後水道 sample report 4
+// (a warning with per-area forecasts and long-period ground motion).
+func TestParseVXSE45_ViewerFields(t *testing.T) {
+	r := parseFile(t, "jma_sample_77_01_04.xml")
+	if r.Title != "緊急地震速報（地震動予報）" || r.EditorialOffice != "気象庁本庁" || r.LandOrSea != "海域" {
+		t.Errorf("control/hypocenter: %q %q %q", r.Title, r.EditorialOffice, r.LandOrSea)
+	}
+	if r.Accuracy != (Accuracy{Epicenter: "4", Epicenter2: "4", Depth: "4", Magnitude: "4", MagnitudeStations: "5"}) {
+		t.Errorf("accuracy: %+v", r.Accuracy)
+	}
+	if r.LgIntensity != (Intensity{Present: true, From: "1", To: "1"}) {
+		t.Errorf("lg intensity: %+v", r.LgIntensity)
+	}
+	if r.Change != (Change{Present: true, MaxInt: "0", MaxLgInt: "1", Reason: "0"}) {
+		t.Errorf("change: %+v", r.Change)
+	}
+	if r.Comment != "強い揺れに警戒してください。" {
+		t.Errorf("comment: %q", r.Comment)
+	}
+	if len(r.Areas) != 9 {
+		t.Fatalf("areas: %d", len(r.Areas))
+	}
+	first := r.Areas[0]
+	if first.Pref != "愛媛" || first.Name != "愛媛県南予" || first.KindName != "緊急地震速報（警報）" ||
+		first.Intensity != (Intensity{Present: true, From: "5-", To: "5-"}) || !first.Arrived || first.ArrivalTime != nil {
+		t.Errorf("area[0]: %+v", first)
+	}
+	last := r.Areas[8]
+	if last.Name != "広島県南西部" || last.Intensity.From != "3" || last.Intensity.To != "4" || last.Arrived ||
+		last.ArrivalTime == nil || last.ArrivalTime.Format("15:04:05") != "23:15:19" {
+		t.Errorf("area[8]: %+v", last)
+	}
+}
+
+func TestParseVXSE45_CancellationText(t *testing.T) {
+	if r := parseFile(t, "jma_sample_77_01_33.xml"); r.Text != "先ほどの、緊急地震速報（地震動予報）を取り消します。" {
+		t.Errorf("text: %q", r.Text)
+	}
+}

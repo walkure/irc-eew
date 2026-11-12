@@ -61,8 +61,41 @@ type Intensity struct {
 	From, To string
 }
 
+// Accuracy holds Hypocenter/Accuracy's rank codes, normalized ("" when
+// absent). See JMA 地震火山関連 解説資料 Ⅱ.21 1-4-2 for the code tables.
+type Accuracy struct {
+	Epicenter, Epicenter2, Depth, Magnitude, MagnitudeStations string
+}
+
+// Change is Intensity/Forecast/Appendix: how the maximum forecasts moved
+// since the previous report. Codes are normalized; Present is false when
+// the element is absent.
+type Change struct {
+	Present                  bool
+	MaxInt, MaxLgInt, Reason string
+}
+
+// AreaForecast is one Intensity/Forecast/Pref/Area entry.
+type AreaForecast struct {
+	Pref, Name, Code string
+	// KindName is Category/Kind/Name (緊急地震速報（警報）/（予報）) and
+	// KindCode its code (2nd digit 9 = PLUM-based forecast).
+	KindName, KindCode string
+	Intensity          Intensity
+	LgIntensity        Intensity
+	// ArrivalTime is the expected arrival of the main shaking (or, for a
+	// PLUM forecast, when that intensity was first forecast); nil if absent.
+	ArrivalTime *time.Time
+	// Arrived is set for Condition 既に主要動到達と推測.
+	Arrived bool
+}
+
 // Report is one parsed EEW report.
 type Report struct {
+	// Title is Control/Title (e.g. 緊急地震速報（地震動予報）).
+	Title string
+	// EditorialOffice is Control/EditorialOffice (e.g. 大阪管区気象台).
+	EditorialOffice string
 	// Status is Control/Status: 通常, 訓練 or 試験.
 	Status   string
 	EventID  string
@@ -85,10 +118,23 @@ type Report struct {
 	// when unknown.
 	HypocenterName string
 	// Lat and Lon are the epicenter in degrees; nil when unknown.
-	Lat, Lon  *float64
+	Lat, Lon *float64
+	// LandOrSea is 内陸 or 海域 (empty when absent).
+	LandOrSea string
+	Accuracy  Accuracy
 	Depth     Depth
 	Magnitude *float64
 	Intensity Intensity
+	// LgIntensity is the forecast maximum long-period ground motion class
+	// (ForecastLgInt): codes "0".."4", "不明", and "over" for To.
+	LgIntensity Intensity
+	Change      Change
+	Areas       []AreaForecast
+	// Comment is Comments/WarningComment/Text (display-normalized).
+	Comment string
+	// Text is Body/Text: the cancellation reason, or the free text of a
+	// 最大予測震度のみ report (display-normalized).
+	Text string
 	// Warnings lists values that were present but not understood, for
 	// logging. They never stop a report from being used.
 	Warnings []string
