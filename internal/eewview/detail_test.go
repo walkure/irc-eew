@@ -33,7 +33,7 @@ func TestDetailHandler_FieldsAndAccuracyLabelFix(t *testing.T) {
 	}
 
 	// Date-bug fix: eq_time's date must not borrow warn_time's day.
-	if !strings.Contains(body, "検知日時</td><td>2011/03/12 04:23:48") {
+	if !strings.Contains(body, "発生日時</td><td>2011/03/12 04:23:48") {
 		t.Errorf("expected correct eq-occurrence date, body: %s", body)
 	}
 	if !strings.Contains(body, "通知日時</td><td>2011/03/12 04:24:50") {
@@ -59,7 +59,7 @@ func TestDetailHandler_EBITable(t *testing.T) {
 	defer resp.Body.Close()
 	body := readBody(t, resp)
 
-	if !strings.Contains(body, "<td>地域</td><td>予測震度</td><td>予想時刻</td>") {
+	if !strings.Contains(body, "<td>地域</td><td>区分</td><td>予測震度</td><td>予想時刻</td>") {
 		t.Errorf("expected the EBI table header, body: %s", body)
 	}
 	if !strings.Contains(body, "宮城県中部") {
@@ -67,7 +67,9 @@ func TestDetailHandler_EBITable(t *testing.T) {
 	}
 }
 
-func TestDetailHandler_RawDumpSJISAndControlChars(t *testing.T) {
+// The raw telegram is no longer dumped on the page (user decision): the
+// parsed fields and area table carry its content.
+func TestDetailHandler_NoRawDump(t *testing.T) {
 	srv := newTestServer(t)
 	defer srv.Close()
 
@@ -78,14 +80,8 @@ func TestDetailHandler_RawDumpSJISAndControlChars(t *testing.T) {
 	defer resp.Body.Close()
 	body := readBody(t, resp)
 
-	if !strings.Contains(body, "ﾅｳｷﾔｽﾄ") {
-		t.Errorf("expected the SJIS-decoded preamble to render correctly (not mojibake), body: %s", body)
-	}
-	if !strings.Contains(body, "[SOH]") || !strings.Contains(body, "[STX]") {
-		t.Errorf("expected control-character markers in the raw dump, body: %s", body)
-	}
-	if strings.ContainsRune(body, '\x01') || strings.ContainsRune(body, '\x02') {
-		t.Errorf("raw control bytes should have been replaced, not passed through, body: %s", body)
+	if strings.Contains(body, "<pre>") || strings.Contains(body, "ﾅｳｷﾔｽﾄ") || strings.Contains(body, "[SOH]") {
+		t.Errorf("raw telegram should not be shown, body: %s", body)
 	}
 }
 

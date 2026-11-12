@@ -6,11 +6,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strconv"
-
-	"github.com/walkure/irc-eew/internal/decoder"
 )
 
 // saturate mirrors HTML/index.pl's saturate(): an absent query param
@@ -34,34 +31,6 @@ func saturate(raw string, min, max int) int {
 		return min
 	}
 	return v
-}
-
-var eewFileNameRE = regexp.MustCompile(`^(\d+)\.(\d+)$`)
-
-// splitEEWName parses an archived telegram filename ("<eq_id>.<warn_num>")
-// into its parts.
-func splitEEWName(name string) (eqID string, warnNum int, ok bool) {
-	m := eewFileNameRE.FindStringSubmatch(name)
-	if m == nil {
-		return "", 0, false
-	}
-	n, err := strconv.Atoi(m[2])
-	if err != nil {
-		return "", 0, false
-	}
-	return m[1], n, true
-}
-
-// lessEEWFile replicates HTML/index.pl's custom sort: group by eq_id and
-// sort numerically by warn_num within a group, else fall back to a plain
-// string compare.
-func lessEEWFile(a, b string) bool {
-	aID, aNum, aOK := splitEEWName(a)
-	bID, bNum, bOK := splitEEWName(b)
-	if aOK && bOK && aID == bID {
-		return aNum < bNum
-	}
-	return a < b
 }
 
 func dirExists(path string) bool {
@@ -153,31 +122,14 @@ func listHandler(cfg Config, tmpl *template.Template) http.HandlerFunc {
 		prefix := link(fmt.Sprintf("%s?year=%d", cfg.PathBase, year), fmt.Sprintf("%d年", year)) +
 			link(fmt.Sprintf("%s?year=%d&month=%d", cfg.PathBase, year, month), fmt.Sprintf("%d月", month)) +
 			template.HTML(escaped(fmt.Sprintf("%d日", day)))
-		entries, err := os.ReadDir(dayDir)
+		recs, err := loadDay(dayDir)
 		if err != nil {
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
 		}
-		var names []string
-		for _, e := range entries {
-			if e.IsDir() {
-				continue
-			}
-			if _, _, ok := splitEEWName(e.Name()); ok {
-				names = append(names, e.Name())
-			}
-		}
-		sort.Slice(names, func(i, j int) bool { return lessEEWFile(names[i], names[j]) })
-
-		for _, name := range names {
-			body, err := os.ReadFile(filepath.Join(dayDir, name))
-			if err != nil {
-				continue
-			}
-			tel := decoder.Decode(body)
-			summary := ListSummaryText(tel)
-			href := fmt.Sprintf("%s%s?name=%s", cfg.PathBase, cfg.ViewerPath, name)
-			rows = append(rows, prefix+" "+link(href, "■")+" "+template.HTML(escaped(summary)))
+		for _, rec := range recs {
+			href := fmt.Sprintf("%s%s?name=%s", cfg.PathBase, cfg.ViewerPath, rec.Name)
+			rows = append(rows, prefix+" "+link(href, "■")+" "+template.HTML(escaped(ListSummaryText(rec))))
 		}
 		renderList(w, tmpl, cfg, rows)
 	}

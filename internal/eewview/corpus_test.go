@@ -55,9 +55,8 @@ func renderRecovering(t *testing.T, path string, body []byte) {
 			t.Errorf("%s: rendering panicked: %v", path, r)
 		}
 	}()
-	tel := decoder.Decode(body)
-	_ = ListSummaryText(tel)
-	_ = DetailSummaryText(tel)
-	_ = buildFields(tel)
-	_ = buildEBIRows(tel)
+	rec := legacyRecord(filepath.Base(path), decoder.Decode(body))
+	_ = ListSummaryText(rec)
+	_ = DetailSummaryText(rec)
+	_ = buildFields(rec)
 }

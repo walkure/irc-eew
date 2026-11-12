@@ -31,34 +31,6 @@ func TestSaturate(t *testing.T) {
 	}
 }
 
-func TestSplitEEWName(t *testing.T) {
-	eqID, warnNum, ok := splitEEWName("20110312042346.81")
-	if !ok || eqID != "20110312042346" || warnNum != 81 {
-		t.Errorf("got eqID=%q warnNum=%d ok=%v", eqID, warnNum, ok)
-	}
-	if _, _, ok := splitEEWName("not-a-telegram"); ok {
-		t.Error("expected ok=false for a non-matching name")
-	}
-}
-
-func TestLessEEWFile_NumericWithinSameEqID(t *testing.T) {
-	// "20110312042346.10" sorts before "20110312042346.9" under a plain
-	// string compare (lexical '1' < '9'), but warn_num 9 < 10 numerically
-	// — this is exactly the case index.pl's custom sort exists to handle.
-	if !lessEEWFile("20110312042346.9", "20110312042346.10") {
-		t.Error("expected .9 to sort before .10 within the same eq_id (numeric compare)")
-	}
-	if lessEEWFile("20110312042346.10", "20110312042346.9") {
-		t.Error("expected .10 to NOT sort before .9 within the same eq_id")
-	}
-}
-
-func TestLessEEWFile_DifferentEqIDFallsBackToStringCompare(t *testing.T) {
-	if !lessEEWFile("20110312042346.1", "20110312134730.3") {
-		t.Error("expected different eq_ids to fall back to plain string comparison")
-	}
-}
-
 func newTestServer(t *testing.T) *httptest.Server {
 	t.Helper()
 	cfg := Config{

@@ -2,6 +2,7 @@ package eewview
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -17,11 +18,15 @@ func decodeFixture(t *testing.T, path string) *decoder.Telegram {
 	return decoder.Decode(b)
 }
 
+func legacyFixture(t *testing.T, path string) *record {
+	t.Helper()
+	return legacyRecord(filepath.Base(path), decodeFixture(t, path))
+}
+
 const fixtureDir = "testdata/eewlog/2011/03/12"
 
 func TestListSummaryText_NewReport(t *testing.T) {
-	tel := decodeFixture(t, fixtureDir+"/20110312042346.1")
-	got := ListSummaryText(tel)
+	got := ListSummaryText(legacyFixture(t, fixtureDir+"/20110312042346.1"))
 
 	if !strings.Contains(got, "第01報") {
 		t.Errorf("expected zero-padded report number, got %q", got)
@@ -45,15 +50,14 @@ func TestListSummaryText_FinalReport(t *testing.T) {
 	if !isFinalForViewer(tel) {
 		t.Fatalf("fixture NCNType=%d expected to be >=8 (final for viewer)", tel.NCNType)
 	}
-	got := ListSummaryText(tel)
+	got := ListSummaryText(legacyRecord("20110312042346.81", tel))
 	if !strings.Contains(got, "第81報(最終)") {
 		t.Errorf("expected final marker, got %q", got)
 	}
 }
 
 func TestListSummaryText_Cancellation(t *testing.T) {
-	tel := decodeFixture(t, fixtureDir+"/20110312134730.3")
-	got := ListSummaryText(tel)
+	got := ListSummaryText(legacyFixture(t, fixtureDir+"/20110312134730.3"))
 	if !strings.Contains(got, "取り消し") {
 		t.Errorf("expected cancellation text, got %q", got)
 	}
@@ -63,14 +67,29 @@ func TestListSummaryText_Cancellation(t *testing.T) {
 }
 
 func TestDetailSummaryText_IncludesYearAndFixesDateBug(t *testing.T) {
-	tel := decodeFixture(t, fixtureDir+"/20110312042346.1")
-	got := DetailSummaryText(tel)
+	got := DetailSummaryText(legacyFixture(t, fixtureDir+"/20110312042346.1"))
 
 	if !strings.Contains(got, "2011/03/12 04:24:50") {
 		t.Errorf("expected full warn-time date, got %q", got)
 	}
 	if !strings.Contains(got, "2011/03/12 04:23:48発生") {
 		t.Errorf("expected full eq-time date computed independently, got %q", got)
+	}
+}
+
+// Unknown legacy values ("/"-filled codes) read 不明 instead of the 0 the
+// decoder's numeric fields hold.
+func TestLegacyRecord_UnknownsReadUnknown(t *testing.T) {
+	tel := decodeFixture(t, fixtureDir+"/20110312042346.1")
+	tel.CenterUnknown, tel.DepthUnknown, tel.MagnitudeUnknown = true, true, true
+	got := ListSummaryText(legacyRecord("20110312042346.1", tel))
+	for _, want := range []string{"震央:不明(", "深さ不明", "最大:M不明"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("%q missing %q", got, want)
+		}
+	}
+	if strings.Contains(got, "0.0") || strings.Contains(got, "0km") {
+		t.Errorf("unknown shown as zero: %q", got)
 	}
 }
 

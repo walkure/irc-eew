@@ -11,15 +11,14 @@
 {{range .Fields}}<tr><td>{{.Label}}</td><td>{{.Value}}</td></tr>
 {{end}}</table>
 <hr>
-{{if .EBI}}<table>
-<tr><td>地域</td><td>予測震度</td><td>予想時刻</td></tr>
-{{range .EBI}}<tr><td>{{.Name}}</td><td>{{.Shindo}}</td><td>{{.Time}}</td></tr>
+{{if .Areas}}<table>
+<tr><td>地域</td><td>区分</td><td>予測震度</td>{{if .HasLgInt}}<td>長周期地震動階級</td>{{end}}<td>予想時刻</td></tr>
+{{range .Areas}}<tr><td>{{.Name}}</td><td>{{.Kind}}</td><td>{{.Shindo}}</td>{{if $.HasLgInt}}<td>{{.LgInt}}</td>{{end}}<td>{{.Time}}</td></tr>
 {{end}}</table>
 <hr>
 {{end}}
 {{if .HasMap}}<iframe src="https://maps.google.com/maps?output=embed&amp;q={{.Lat}},{{.Lng}}&amp;t=m&amp;hl=ja&amp;z=7"
  width="60%" height="50%" frameborder="0" style="border:0;" allowfullscreen=""></iframe>
 {{end}}
-<pre>{{.RawDump}}</pre>
 </body></html>
 {{end}}
