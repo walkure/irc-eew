@@ -21,6 +21,22 @@ services:
       - "127.0.0.1:6667:6667"
     restart: unless-stopped
 
+  # Stays joined to #eew / #eew-limited and logs every message it sees
+  # (Ergo here keeps no history): `docker compose logs -f observer`.
+  observer:
+    image: python:3.12.7-alpine
+    command: ["python", "-u", "/observer.py"]
+    volumes:
+      - ./irc_observer.py:/observer.py:ro
+    environment:
+      IRC_HOST: ergo
+      IRC_PORT: "6667"
+      IRC_NICK: observer
+      IRC_CHANNELS: "#eew,#eew-limited"
+    depends_on:
+      - ergo
+    restart: unless-stopped
+
   notifier:
     build:
       context: ../..
