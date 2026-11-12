@@ -1,0 +1,27 @@
+# Config for the dev/shadow compose stack. Copy to config.yaml (gitignored).
+
+irc:
+ - server:
+    host: ergo          # the compose service name
+    port: 6667
+   nick: EEWNotice
+   name: eewbot
+   desc: Emergency Earthquake Warning (shadow)
+   all-notice:
+    - "#eew"
+   limited-notice:
+    - "#eew-limited"
+
+# Test channels only: everything this stack receives is posted here.
+slack:
+ all:
+  - test-all: https://hooks.slack.com/services/XXX
+ limited:
+  - test-limited: https://hooks.slack.com/services/YYY
+
+dmdata:
+ api-key: AKe.yourapikey
+ # Distinct from any other instance using the same key (stale sockets of
+ # the same app-name are closed at startup).
+ app-name: irc-eew-shadow
+ archive-dir: /data/dmdatalog

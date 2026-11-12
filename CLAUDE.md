@@ -159,4 +159,4 @@ WNIのFastCaster配信が終了したため、WNI関連コード（`internal/wni
 ## 用語・経緯
 
 - リポジトリ名・イメージ名の「irc-eew」は歴史的経緯。一時Go移植でIRC対応を落としていた期間があったが、`internal/irc`として復活済み（本ドキュメント作成時点の最新）。
-- ローカルでは`irc-eew-go-shadow`という名前のコンテナが本番WNI/Slack/IRC(テスト用Ergoサーバ)に接続した「shadow」検証用インスタンスとして継続稼働していることがある。実地震での動作確認に使う。
+- 実地震での動作確認（shadow）は`dev/shadow/`のdocker composeで行う（ユーザー要望: IRCも含めて試す）。作業ツリーからビルドしたnotifier（`irc-eew-shadow-notifier-1`）が本物のDMDATAに接続し、同じcompose内のErgo IRCサーバ（`irc-eew-shadow-ergo-1`、`#eew`/`#eew-limited`）とconfig.yamlに書いたSlack（テスト用チャンネルのみ）へ通知する。Ergoは`127.0.0.1:6667`に公開しているので、この開発機のIRCクライアントから接続して通知を目視できる（他ホストからは不可）。`dev/shadow/config.yaml`（秘密情報）と`dev/shadow/data/`（受信生データ）はgitignore。DMDATAの`app-name`は`irc-eew-shadow`で、他インスタンスと分けている。更新は`docker compose up -d --build`（`dev/shadow`で実行）。

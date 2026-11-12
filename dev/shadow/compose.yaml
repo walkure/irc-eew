@@ -1,0 +1,34 @@
+# Local "shadow" verification stack: the notifier built from this working
+# tree, receiving live DMDATA.JP VXSE45 telegrams and notifying a throwaway
+# Ergo IRC server (plus whatever Slack hooks config.yaml lists — use test
+# channels only).
+#
+#   cp config.yaml.example config.yaml   # then fill in api-key / slack hooks
+#   docker compose up -d --build
+#   docker compose logs -f notifier
+#
+# The IRC server is published on 127.0.0.1:6667 only, so any IRC client on
+# this machine can join #eew / #eew-limited to watch notifications; it is
+# not reachable from other hosts.
+#
+# config.yaml (secrets) and data/ (archived telegrams) are gitignored.
+name: irc-eew-shadow
+
+services:
+  ergo:
+    image: ghcr.io/ergochat/ergo:stable
+    ports:
+      - "127.0.0.1:6667:6667"
+    restart: unless-stopped
+
+  notifier:
+    build:
+      context: ../..
+      dockerfile: Dockerfile.golang
+    image: irc-eew:shadow
+    depends_on:
+      - ergo
+    volumes:
+      - ./config.yaml:/conf/config.yaml:ro
+      - ./data:/data
+    restart: unless-stopped
