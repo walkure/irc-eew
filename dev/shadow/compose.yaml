@@ -37,6 +37,20 @@ services:
       - ergo
     restart: unless-stopped
 
+  # Archive viewer over what the notifier saved: http://127.0.0.1:8080/
+  viewer:
+    build:
+      context: ../..
+      dockerfile: Dockerfile.eew-view.golang
+    image: eew-view:shadow
+    environment:
+      EEW_DATA_DIR: /data
+    volumes:
+      - ./data:/data:ro
+    ports:
+      - "127.0.0.1:8080:8080"
+    restart: unless-stopped
+
   notifier:
     build:
       context: ../..
