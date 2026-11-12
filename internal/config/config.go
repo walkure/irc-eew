@@ -113,22 +113,17 @@ func (h *Hook) UnmarshalYAML(value *yaml.Node) error {
 
 // DMDATAConfig mirrors the dmdata: section.
 type DMDATAConfig struct {
-	// APIKey is the DMDATA.JP API key (needs socket.start, socket.close
-	// and the eew.get.* permission for the chosen classification).
+	// APIKey is the DMDATA.JP API key (needs socket.start, socket.list,
+	// socket.close and eew.get.forecast).
 	APIKey string `yaml:"api-key"`
 	// AppName is shown in DMDATA.JP's connection list (max 24 bytes). It
 	// also identifies this app's own leftover sockets, which are closed at
 	// startup and on a connection-limit (409) refusal — so instances
 	// sharing an API key (e.g. shadow and production) need distinct names.
 	AppName string `yaml:"app-name"`
-	// Classifications and Types are passed to Socket Start as-is.
-	Classifications []string `yaml:"classifications"`
-	Types           []string `yaml:"types"`
-	// Test is "no" or "including" (receive XML test telegrams too).
-	Test string `yaml:"test"`
-	// FormatMode is "raw" (JMA telegrams as delivered; default) or "json"
-	// (DMDATA's JSON conversion).
-	FormatMode string `yaml:"format-mode"`
+	// What to subscribe to (classification, telegram type, test telegrams,
+	// format mode) is deliberately not configurable: the notifier only
+	// understands VXSE45 in JMA XML, so it's fixed in internal/app.
 	// ArchiveDir, if set, saves every received data message verbatim (see
 	// internal/rawarchive). Separate from logdir, whose layout belongs to
 	// the legacy WNI archive read by eew-view.
@@ -138,35 +133,11 @@ type DMDATAConfig struct {
 	APIBase string `yaml:"api-base"`
 }
 
-// Defaults applied by WithDefaults when the corresponding field is empty.
-var (
-	DefaultDMDATAClassifications = []string{"eew.forecast"}
-	DefaultDMDATATypes           = []string{"VXSE45"}
-)
+// DefaultDMDATAAppName is the app-name used when none is configured.
+const DefaultDMDATAAppName = "irc-eew"
 
-const (
-	DefaultDMDATATest       = "no"
-	DefaultDMDATAAppName    = "irc-eew"
-	DefaultDMDATAFormatMode = "raw"
-)
-
-// WithDefaults returns c with unset fields filled in: VXSE45 from the
-// eew.forecast classification, no test telegrams, raw JMA format (XML,
-// pinned explicitly rather than left to the server default), app name
-// "irc-eew".
+// WithDefaults returns c with unset fields filled in (app name "irc-eew").
 func (c DMDATAConfig) WithDefaults() DMDATAConfig {
-	if len(c.Classifications) == 0 {
-		c.Classifications = append([]string(nil), DefaultDMDATAClassifications...)
-	}
-	if len(c.Types) == 0 {
-		c.Types = append([]string(nil), DefaultDMDATATypes...)
-	}
-	if c.Test == "" {
-		c.Test = DefaultDMDATATest
-	}
-	if c.FormatMode == "" {
-		c.FormatMode = DefaultDMDATAFormatMode
-	}
 	if c.AppName == "" {
 		c.AppName = DefaultDMDATAAppName
 	}

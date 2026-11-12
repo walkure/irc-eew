@@ -3,7 +3,6 @@ package config_test
 import (
 	"os"
 	"path/filepath"
-	"slices"
 	"testing"
 
 	"github.com/walkure/irc-eew/internal/config"
@@ -59,8 +58,7 @@ func TestLoad_DistExample(t *testing.T) {
 		t.Errorf("DMDATA: got %+v", cfg.DMDATA)
 	}
 	d := cfg.DMDATA.WithDefaults()
-	if !slices.Equal(d.Classifications, []string{"eew.forecast"}) || !slices.Equal(d.Types, []string{"VXSE45"}) ||
-		d.Test != "no" || d.AppName != "irc-eew" || d.FormatMode != "raw" {
+	if d.AppName != "irc-eew" {
 		t.Errorf("DMDATA defaults: got %+v", d)
 	}
 

@@ -55,7 +55,7 @@ go test ./...
 - `logdir:` — 生テレグラムの保存先。省略するとアーカイブ無効。
 - `irc:` — **YAMLの配列**（複数IRCサーバに対応、Perl版は単一サーバのみだった）。各要素は`server.{host,port,password,charset,message-type}` / `nick` / `name` / `desc` / `all-notice` / `limited-notice`（いずれもYAMLリスト）。`charset`未設定時は**UTF-8**がデフォルト（Perl版は`iso-2022-jp`が暗黙デフォルトだったが、意図的に変更済み・ユーザー承認済み）。`message-type`は`notice`（既定、Perl版の`IRCSock::notice`と同じ）または`privmsg`。
 - `slack:` — `all`/`limited`の2階層。`all`は常に全報通知、`limited`は新規地震/最終報/取消のみ。
-- `dmdata:` — DMDATA.JPのAPIキー、受信区分(既定`eew.forecast`)・種別(既定`VXSE45`)、`archive-dir`（生データ保存先）等。
+- `dmdata:` — `api-key`、`app-name`、`archive-dir`（生データ保存先）、`api-base`（偽サーバ向け）のみ。受信する区分(`eew.forecast`)・種別(`VXSE45`)・テスト電文なし・`formatMode: raw`は通知処理がそれしか扱えないため**設定項目にせずコードに固定**（`internal/app`、ユーザー決定: 変更不要な設定項目は置かない）。
 
 **古いPerl形式の`irc:`（単一マッピング）は今は意図的にエラーになる**（`internal/config/config_test.go`の`TestLoad_RejectsOldStyleIRCSection`が仕様として明記）。IRC対応が存在しなかった頃のGo版は`irc:`セクションを無視していたが、今は実際にパースする。
 

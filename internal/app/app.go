@@ -88,11 +88,11 @@ func Run(ctx context.Context, cfg *config.Config) error {
 	client := &dmdata.Client{
 		API: dmdata.NewAPI(dm.APIBase, dm.APIKey),
 		Request: dmdata.SocketStartRequest{
-			Classifications: dm.Classifications,
-			Types:           dm.Types,
-			Test:            dm.Test,
+			Classifications: []string{dmdataClassification},
+			Types:           []string{notifiedType},
+			Test:            "no",
 			AppName:         dm.AppName,
-			FormatMode:      dm.FormatMode,
+			FormatMode:      "raw",
 		},
 	}
 	handlers := dmdata.Handlers{

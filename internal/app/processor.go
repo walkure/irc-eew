@@ -10,9 +10,14 @@ import (
 	"github.com/walkure/irc-eew/internal/slack"
 )
 
-// notifiedType is the only telegram type that is notified. VXSE44 and
-// others are archived but not processed (see CLAUDE.md, DMDATA移行).
-const notifiedType = "VXSE45"
+// What the feed subscribes to is fixed, not configurable: the notifier
+// only understands VXSE45 (緊急地震速報（地震動予報）, part of the
+// eew.forecast classification) in JMA XML (format mode "raw"), and test
+// telegrams (VXSE42) aren't notified. See CLAUDE.md, DMDATA移行.
+const (
+	dmdataClassification = "eew.forecast"
+	notifiedType         = "VXSE45"
+)
 
 // Processor turns a received DMDATA data message into the notification
 // text/title and the Slack hooks to send it to. It does no network I/O, so

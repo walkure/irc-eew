@@ -37,18 +37,12 @@ slack:
 
 # DMDATA.JP WebSocket v2 feed. api-key is required (permissions: socket.start,
 # socket.list, socket.close, eew.get.forecast); the rest are optional.
+# What is received (VXSE45 緊急地震速報（地震動予報） from eew.forecast, as JMA
+# XML, no test telegrams) is fixed, since that's all the notifier handles.
 dmdata:
  api-key: AKe.yourapikey
 # app-name must differ between instances sharing one API key (e.g. shadow vs
 # production): sockets left open under this name are closed at startup.
 # app-name: irc-eew
-# classifications defaults to [eew.forecast] and types to [VXSE45]
-# (緊急地震速報（地震動予報）).
-# classifications:
-#  - eew.forecast
-# types:
-#  - VXSE45
-# test: no            # "including" also receives XML test telegrams
-# format-mode: raw    # raw (JMA XML as delivered; default) or json (DMDATA's JSON conversion)
 # save every received data message verbatim; omit to disable.
  archive-dir: ./dmdatalog
