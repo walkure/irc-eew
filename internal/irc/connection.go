@@ -9,7 +9,7 @@ import (
 	goirc "github.com/fluffle/goirc/client"
 
 	"github.com/walkure/irc-eew/internal/config"
-	"github.com/walkure/irc-eew/internal/decoder"
+	"github.com/walkure/irc-eew/internal/eew"
 )
 
 // defaultQueueCapacity bounds how many distinct earthquakes' notices one
@@ -57,8 +57,8 @@ const (
 // Connection manages one IRC server: connecting, joining its configured
 // channels, reconnecting with backoff on disconnect, and draining its send
 // Queue once registered. Unlike irc-eew.pl's single IO::Select loop shared
-// across IRC/WNI/Slack, each Connection owns its own goroutines and never
-// blocks the WNI receive path — see Notify.
+// across IRC/feed/Slack, each Connection owns its own goroutines and never
+// blocks the feed receive path — see Notify.
 type Connection struct {
 	server      string
 	conn        *goirc.Conn
@@ -99,17 +99,17 @@ func NewConnection(srv config.IRCServerConfig) *Connection {
 	return c
 }
 
-// Notify dispatches a decoded telegram to this connection's channels
-// (per its all-notice/limited-notice configuration) and enqueues it for
-// sending. It never blocks — Queue.Enqueue is non-blocking by design — so
-// it's safe to call directly from the WNI receive path.
-func (c *Connection) Notify(t *decoder.Telegram, slackText string) {
-	channels, priority := c.dispatcher.ChannelsFor(t)
+// Notify dispatches a report to this connection's channels (per its
+// all-notice/limited-notice configuration) and enqueues it for sending. It
+// never blocks — Queue.Enqueue is non-blocking by design — so it's safe to
+// call directly from the feed receive path.
+func (c *Connection) Notify(ev eew.Event, slackText string) {
+	channels, priority := c.dispatcher.ChannelsFor(ev)
 	if len(channels) == 0 {
 		return
 	}
 	c.queue.Enqueue(Notice{
-		EqID:     t.EqID,
+		EqID:     ev.EventID,
 		Channels: channels,
 		Text:     StripLinks(slackText),
 		Priority: priority,

@@ -1,11 +1,6 @@
-// Package app wires config, the DMDATA.JP feed client, the
-// decoder/formatter, and the Slack/IRC notifiers together into the running
-// daemon.
-//
-// TODO(dmdata): the upstream feed was WNI FastCaster until WNI ended it.
-// Its DMDATA.JP replacement currently only receives and archives (see Run);
-// decoding and notification (Processor, dispatchTo*) are still wired for
-// the legacy code-telegram format and get reattached in phase 2.
+// Package app wires config, the DMDATA.JP feed client, the VXSE45
+// parser/formatter, and the Slack/IRC notifiers together into the running
+// daemon. (The feed was WNI FastCaster until WNI ended it.)
 package app
 
 import (
@@ -16,10 +11,7 @@ import (
 	"time"
 
 	"github.com/walkure/irc-eew/internal/config"
-	"github.com/walkure/irc-eew/internal/decoder"
 	"github.com/walkure/irc-eew/internal/dmdata"
-	"github.com/walkure/irc-eew/internal/eewlog"
-	"github.com/walkure/irc-eew/internal/eewmsg"
 	"github.com/walkure/irc-eew/internal/irc"
 	"github.com/walkure/irc-eew/internal/notify"
 	"github.com/walkure/irc-eew/internal/rawarchive"
@@ -40,10 +32,9 @@ const slackSendTimeout = 30 * time.Second
 // latter, so a lapsed contract shows up as a crash loop rather than a
 // daemon silently retrying forever.
 //
-// Phase 1 of the DMDATA.JP migration: telegrams are received and archived
-// verbatim, and their metadata logged, but nothing is decoded or notified
-// yet — the payload format has to be confirmed against real deliveries
-// first. IRC connections are still brought up so the bot stays present.
+// Every received data message is archived verbatim first (handleData),
+// then VXSE45 reports are parsed, formatted in the legacy WNI-era shape and
+// sent to Slack and IRC (Processor).
 func Run(ctx context.Context, cfg *config.Config) error {
 	dm := cfg.DMDATA.WithDefaults()
 	if dm.APIKey == "" {
@@ -61,6 +52,19 @@ func Run(ctx context.Context, cfg *config.Config) error {
 	} else {
 		slog.Warn("dmdata.archive-dir not set, received messages will not be saved")
 	}
+
+	if cfg.LogDir != "" {
+		slog.Info("logdir is the legacy WNI archive and is no longer written; received data goes to dmdata.archive-dir", "logdir", cfg.LogDir)
+	}
+
+	var allHooks, limitedHooks []slack.Hook
+	if cfg.Slack != nil {
+		allHooks = toSlackHooks(cfg.Slack.All)
+		limitedHooks = toSlackHooks(cfg.Slack.Limited)
+	}
+	slog.Info("slack hooks configured", "all", len(allHooks), "limited", len(limitedHooks))
+	processor := NewProcessor(notify.NewDispatcher(allHooks, limitedHooks))
+	notifier := slack.New()
 
 	ircConns := make([]*irc.Connection, 0, len(cfg.IRC))
 	for _, srv := range cfg.IRC {
@@ -102,6 +106,13 @@ func Run(ctx context.Context, cfg *config.Config) error {
 		},
 		OnData: func(m *dmdata.DataMessage) {
 			handleData(archive, m)
+			result, ok := processor.Process(m)
+			if !ok {
+				return
+			}
+			slog.Info("eew notification", "event_id", result.Event.EventID, "text", result.Text)
+			dispatchToSlack(notifier, result)
+			dispatchToIRC(ircConns, result)
 		},
 	}
 
@@ -252,7 +263,7 @@ func dispatchToSlack(notifier *slack.Notifier, result ProcessResult) {
 // per-call goroutine is needed here since Notify never does I/O itself.
 func dispatchToIRC(conns []*irc.Connection, result ProcessResult) {
 	for _, conn := range conns {
-		conn.Notify(result.Telegram, result.Text)
+		conn.Notify(result.Event, result.Text)
 	}
 }
 
@@ -271,57 +282,4 @@ func nextBackoff(cur, max time.Duration) time.Duration {
 		return max
 	}
 	return next
-}
-
-// Processor turns a raw received telegram into a decoded Telegram, its
-// Slack message text/title, and the list of hooks it should go to — kept
-// separate from the actual (network I/O) sending so it's cheaply testable.
-type Processor struct {
-	store      *eewlog.Store
-	dispatcher *notify.Dispatcher
-}
-
-// NewProcessor creates a Processor. store may be nil (raw archival
-// disabled, matching an unset `logdir:` in config).
-func NewProcessor(store *eewlog.Store, dispatcher *notify.Dispatcher) *Processor {
-	return &Processor{store: store, dispatcher: dispatcher}
-}
-
-// ProcessResult is everything the caller needs to notify Slack and log.
-type ProcessResult struct {
-	Telegram *decoder.Telegram
-	Text     string
-	Title    string
-	Hooks    []slack.Hook
-}
-
-// Process decodes body, formats the message, determines which hooks should
-// be notified, and (if archival is enabled) saves the raw bytes under their
-// final eq_id/warn_num-based path — porting eew_callback's non-notification
-// logic (irc-eew.pl lines ~148-229, minus the IRC branch).
-func (p *Processor) Process(md5hex string, body []byte) ProcessResult {
-	var tempPath string
-	if p.store != nil {
-		tp, err := p.store.WriteTemp(md5hex, body)
-		if err != nil {
-			slog.Error("eewlog write temp failed", "error", err)
-		} else {
-			tempPath = tp
-		}
-	}
-
-	tel := decoder.Decode(body)
-	text, title := eewmsg.Format(tel)
-	hooks := p.dispatcher.HooksFor(tel)
-
-	if p.store != nil && tempPath != "" {
-		finalPath, err := p.store.Finalize(tempPath, tel.EqID, tel.WarnNum)
-		if err != nil {
-			slog.Error("eewlog finalize failed", "error", err)
-		} else {
-			slog.Info("eewlog saved", "path", finalPath)
-		}
-	}
-
-	return ProcessResult{Telegram: tel, Text: text, Title: title, Hooks: hooks}
 }

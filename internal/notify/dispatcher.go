@@ -1,36 +1,40 @@
 // Package notify decides which configured Slack webhooks should receive a
-// given decoded telegram.
+// given EEW report.
 package notify
 
 import (
-	"github.com/walkure/irc-eew/internal/decoder"
+	"github.com/walkure/irc-eew/internal/eew"
 	"github.com/walkure/irc-eew/internal/slack"
 )
 
-// Dispatcher selects hooks for each telegram: "all" hooks always fire,
-// "limited" hooks only fire for a new earthquake, a cancellation, or a
-// final/amended report — porting eew_callback's dedup logic (irc-eew.pl
-// lines ~189-193) exactly, including its state (last-seen eq_id, reset only
-// when the limited tier actually fires) and its in-memory-only, not
-// persisted-across-restarts nature.
+// Dispatcher selects hooks for each report: "all" hooks always fire,
+// "limited" hooks only fire for the first report of an earthquake, a
+// final report, or a cancellation.
+//
+// "First report of an earthquake" means an EventID not among the most
+// recently seen ones (eew.RecentSet, bounded). This deliberately departs
+// from irc-eew.pl, which only remembered the single last eq_id: with
+// several earthquakes' reports interleaving (common), that refired the
+// limited tier on every switch between them. State is in-memory only and
+// not persisted across restarts, as before.
 type Dispatcher struct {
 	all, limited []slack.Hook
-	lastEqID     string
+	seen         *eew.RecentSet
 }
 
 // NewDispatcher creates a Dispatcher for the given "all" and "limited" hook
 // lists (either may be empty/nil).
 func NewDispatcher(all, limited []slack.Hook) *Dispatcher {
-	return &Dispatcher{all: all, limited: limited}
+	return &Dispatcher{all: all, limited: limited, seen: eew.NewRecentSet(0)}
 }
 
-// HooksFor returns the hooks that should be notified for t.
-func (d *Dispatcher) HooksFor(t *decoder.Telegram) []slack.Hook {
+// HooksFor returns the hooks that should be notified for ev.
+func (d *Dispatcher) HooksFor(ev eew.Event) []slack.Hook {
 	hooks := make([]slack.Hook, 0, len(d.all)+len(d.limited))
 	hooks = append(hooks, d.all...)
 
-	if t.EqID != d.lastEqID || t.IsCancellation() || t.IsFinal() {
-		d.lastEqID = t.EqID
+	isNew := d.seen.Add(ev.EventID)
+	if isNew || ev.Cancelled || ev.Final {
 		hooks = append(hooks, d.limited...)
 	}
 	return hooks

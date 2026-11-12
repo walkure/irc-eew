@@ -26,7 +26,7 @@ import (
 	"golang.org/x/text/transform"
 
 	"github.com/walkure/irc-eew/internal/config"
-	"github.com/walkure/irc-eew/internal/decoder"
+	"github.com/walkure/irc-eew/internal/eew"
 	"github.com/walkure/irc-eew/internal/irc"
 )
 
@@ -186,7 +186,7 @@ func TestConnection_NotifiesRealServer_UTF8Default(t *testing.T) {
 	waitJoined(t, obs, channel, "eewbot-u")
 
 	const wantText = "緊急地震速報 テスト #test-チャンネル"
-	conn.Notify(&decoder.Telegram{EqID: "20260809000000", WarnNum: 1}, wantText)
+	conn.Notify(eew.Event{EventID: "20260809000000"}, wantText)
 
 	line := obs.readUntil(t, "NOTICE "+channel)
 	if got := messageText(t, line, "NOTICE", channel); got != wantText {
@@ -212,7 +212,7 @@ func TestConnection_NotifiesRealServer_Privmsg(t *testing.T) {
 	waitJoined(t, obs, channel, "eewbot-p")
 
 	const wantText = "緊急地震速報 テスト PRIVMSG"
-	conn.Notify(&decoder.Telegram{EqID: "20260809000002", WarnNum: 1}, wantText)
+	conn.Notify(eew.Event{EventID: "20260809000002"}, wantText)
 
 	line := obs.readUntil(t, "PRIVMSG "+channel)
 	if got := messageText(t, line, "PRIVMSG", channel); got != wantText {
@@ -238,7 +238,7 @@ func TestConnection_NotifiesRealServer_ISO2022JP(t *testing.T) {
 	waitJoined(t, obs, channel, "eewbot-j")
 
 	const wantText = "緊急地震速報 テスト 震度3"
-	conn.Notify(&decoder.Telegram{EqID: "20260809000001", WarnNum: 1}, wantText)
+	conn.Notify(eew.Event{EventID: "20260809000001"}, wantText)
 
 	line := obs.readUntil(t, "NOTICE "+channel)
 	raw := messageText(t, line, "NOTICE", channel)

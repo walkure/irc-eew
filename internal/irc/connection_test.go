@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/walkure/irc-eew/internal/config"
-	"github.com/walkure/irc-eew/internal/decoder"
+	"github.com/walkure/irc-eew/internal/eew"
 )
 
 func testServerConfig() config.IRCServerConfig {
@@ -50,7 +50,7 @@ func TestClientConfig_MapsFieldsAndDisablesFlood(t *testing.T) {
 func TestConnection_NotifyEnqueuesDispatchedNotice(t *testing.T) {
 	c := NewConnection(testServerConfig())
 
-	tel := &decoder.Telegram{EqID: "20260809000000", WarnNum: 1}
+	tel := eew.Event{EventID: "20260809000000"}
 	text := "震央:<http://maps.google.com/maps?q=1,2|N1/E2>(テスト)深さ10km 最大:M3.0 震度2"
 	c.Notify(tel, text)
 
@@ -78,14 +78,14 @@ func TestConnection_NotifySkipsQueueWhenNoChannelsSelected(t *testing.T) {
 	c := NewConnection(srv)
 
 	eqID := "20260809000000"
-	c.Notify(&decoder.Telegram{EqID: eqID, WarnNum: 1}, "first report")
+	c.Notify(eew.Event{EventID: eqID}, "first report")
 	if _, ok := c.queue.Dequeue(); !ok {
 		t.Fatal("expected the first report to fire limited and enqueue")
 	}
 
 	// A routine follow-up for the same quake fires neither all (unset) nor
 	// limited (already fired), so nothing should be queued.
-	c.Notify(&decoder.Telegram{EqID: eqID, WarnNum: 2}, "routine report")
+	c.Notify(eew.Event{EventID: eqID}, "routine report")
 	if got := c.queue.Len(); got != 0 {
 		t.Errorf("Len: got %d, want 0 (routine report should not enqueue)", got)
 	}

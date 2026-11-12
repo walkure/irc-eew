@@ -27,7 +27,7 @@ type Notice struct {
 // Queue holds at most Capacity distinct-eq_id pending Notices. It has no
 // equivalent in irc-eew.pl, which sent synchronously with no notion of a
 // backlog; it exists here because a single IRC connection is one ordered
-// TCP stream, and the WNI receive goroutine must never block waiting for it.
+// TCP stream, and the feed receive goroutine must never block waiting for it.
 //
 // Two behaviours distinguish it from a plain FIFO channel:
 //
@@ -41,7 +41,7 @@ type Notice struct {
 //     report (an earthquake's last word) survives longest.
 //
 // Queue is safe for concurrent use: Enqueue is meant to be called from the
-// WNI receive goroutine (and never blocks), while Dequeue is called by the
+// feed receive goroutine (and never blocks), while Dequeue is called by the
 // one goroutine that owns the IRC connection's write path.
 type Queue struct {
 	mu       sync.Mutex

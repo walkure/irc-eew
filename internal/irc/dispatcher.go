@@ -1,23 +1,25 @@
 package irc
 
-import "github.com/walkure/irc-eew/internal/decoder"
+import "github.com/walkure/irc-eew/internal/eew"
 
-// Dispatcher selects the channels that should receive a given telegram, for
+// Dispatcher selects the channels that should receive a given report, for
 // one IRC connection. It mirrors internal/notify.Dispatcher's "all always
-// fires, limited fires only for a new earthquake, a cancellation, or a
-// final/amended report" logic (irc-eew.pl's eew_callback dedup), but each
-// Dispatcher instance keeps its own lastEqID — deliberately independent
-// from internal/notify.Dispatcher (Slack) and from every other IRC
-// connection's Dispatcher, unlike irc-eew.pl's single shared $last_eq_id.
+// fires, limited fires only for an earthquake's first report, a final
+// report, or a cancellation" logic, including remembering recently seen
+// EventIDs (eew.RecentSet) rather than irc-eew.pl's single last eq_id, so
+// interleaved earthquakes don't refire the limited channels. Each
+// Dispatcher keeps its own memory — deliberately independent from
+// internal/notify.Dispatcher (Slack) and from every other IRC connection's
+// Dispatcher, unlike irc-eew.pl's single shared $last_eq_id.
 type Dispatcher struct {
 	all, limited []string
-	lastEqID     string
+	seen         *eew.RecentSet
 }
 
 // NewDispatcher creates a Dispatcher for the given "all-notice" and
 // "limited-notice" channel lists (either may be empty/nil).
 func NewDispatcher(all, limited []string) *Dispatcher {
-	return &Dispatcher{all: all, limited: limited}
+	return &Dispatcher{all: all, limited: limited, seen: eew.NewRecentSet(0)}
 }
 
 // JoinChannels returns the deduplicated union of the all-notice and
@@ -28,26 +30,22 @@ func (d *Dispatcher) JoinChannels() []string {
 }
 
 // ChannelsFor returns the deduplicated channels that should be notified for
-// t, and the Queue Priority that notice should carry. A channel listed in
+// ev, and the Queue Priority that notice should carry. A channel listed in
 // both all-notice and limited-notice is only notified once per report
 // (irc-eew.pl would notify it twice in that configuration).
-func (d *Dispatcher) ChannelsFor(t *decoder.Telegram) ([]string, Priority) {
-	limitedFires := t.EqID != d.lastEqID || t.IsCancellation() || t.IsFinal()
-	if limitedFires {
-		d.lastEqID = t.EqID
+func (d *Dispatcher) ChannelsFor(ev eew.Event) ([]string, Priority) {
+	isNew := d.seen.Add(ev.EventID)
+	if isNew || ev.Cancelled || ev.Final {
+		return dedup(d.all, d.limited), priorityFor(ev)
 	}
-
-	if limitedFires {
-		return dedup(d.all, d.limited), priorityFor(t)
-	}
-	return dedup(d.all), priorityFor(t)
+	return dedup(d.all), priorityFor(ev)
 }
 
-func priorityFor(t *decoder.Telegram) Priority {
+func priorityFor(ev eew.Event) Priority {
 	switch {
-	case t.IsCancellation():
+	case ev.Cancelled:
 		return PriorityCancellation
-	case t.IsFinal():
+	case ev.Final:
 		return PriorityFinal
 	default:
 		return PriorityNormal
