@@ -26,7 +26,7 @@ const slackSendTimeout = 30 * time.Second
 
 // Run wires everything together and runs until ctx is canceled, or returns
 // an error for conditions retrying can't fix: startup misconfiguration (no
-// API key, an unwritable archive dir) or a fatal DMDATA error (bad key, no
+// API key, an unwritable logdir) or a fatal DMDATA error (bad key, no
 // contract, missing permission, contract terminated...; see
 // dmdata.Classify). The process is expected to exit non-zero on the
 // latter, so a lapsed contract shows up as a crash loop rather than a
@@ -42,19 +42,15 @@ func Run(ctx context.Context, cfg *config.Config) error {
 	}
 
 	var archive *rawarchive.Store
-	if dm.ArchiveDir != "" {
-		a, err := rawarchive.Open(dm.ArchiveDir)
+	if cfg.LogDir != "" {
+		a, err := rawarchive.Open(cfg.LogDir)
 		if err != nil {
 			return fmt.Errorf("app: %w", err)
 		}
 		archive = a
-		slog.Info("dmdata archive enabled", "path", dm.ArchiveDir)
+		slog.Info("logdir enabled", "path", cfg.LogDir)
 	} else {
-		slog.Warn("dmdata.archive-dir not set, received messages will not be saved")
-	}
-
-	if cfg.LogDir != "" {
-		slog.Info("logdir is the legacy WNI archive and is no longer written; received data goes to dmdata.archive-dir", "logdir", cfg.LogDir)
+		slog.Info("logdir not set, received telegrams will not be saved")
 	}
 
 	var allHooks, limitedHooks []slack.Hook
@@ -149,7 +145,8 @@ const bodyPreviewLen = 80
 func handleData(archive *rawarchive.Store, m *dmdata.DataMessage) {
 	path := ""
 	if archive != nil {
-		p, existed, err := archive.Save(m.ID, m.Raw)
+		eventID, serial := m.EventIDSerial()
+		p, existed, err := archive.Save(m.ID, m.Raw, eventID, serial)
 		switch {
 		case err != nil:
 			slog.Error("dmdata archive failed", "id", m.ID, "error", err)

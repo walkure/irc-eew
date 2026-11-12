@@ -44,5 +44,3 @@ dmdata:
 # app-name must differ between instances sharing one API key (e.g. shadow vs
 # production): sockets left open under this name are closed at startup.
 # app-name: irc-eew
-# save every received data message verbatim; omit to disable.
- archive-dir: ./dmdatalog

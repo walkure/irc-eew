@@ -60,6 +60,9 @@ type DataMessage struct {
 	Classification string    `json:"classification"`
 	Passing        []Passing `json:"passing"`
 	Head           DataHead  `json:"head"`
+	// XMLReport is DMDATA's summary of an XML telegram's Control/Head
+	// (present for XML/JSON formats only).
+	XMLReport *XMLReport `json:"xmlReport"`
 	// Format is "xml", "a/n", "binary", "json", or null.
 	Format *string `json:"format"`
 	// Compression is "gzip", "zip", or null.
@@ -67,6 +70,40 @@ type DataMessage struct {
 	// Encoding is "base64", "utf-8", or null.
 	Encoding *string `json:"encoding"`
 	Body     string  `json:"body"`
+}
+
+// XMLReport is the part of the envelope's xmlReport this client uses.
+type XMLReport struct {
+	Head struct {
+		EventID FlexString `json:"eventId"`
+		Serial  FlexString `json:"serial"`
+	} `json:"head"`
+}
+
+// FlexString accepts a JSON string or number (DMDATA documents some ids as
+// String<Integer> and may switch representations) and keeps its text.
+type FlexString string
+
+func (f *FlexString) UnmarshalJSON(b []byte) error {
+	var id SocketID
+	if err := id.UnmarshalJSON(b); err != nil {
+		if string(b) == "null" {
+			*f = ""
+			return nil
+		}
+		return err
+	}
+	*f = FlexString(id)
+	return nil
+}
+
+// EventIDSerial returns xmlReport.head's eventId and serial, or empty
+// strings when the envelope has none.
+func (m *DataMessage) EventIDSerial() (eventID, serial string) {
+	if m.XMLReport == nil {
+		return "", ""
+	}
+	return string(m.XMLReport.Head.EventID), string(m.XMLReport.Head.Serial)
 }
 
 // Passing is one relay hop the telegram went through.

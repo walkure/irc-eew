@@ -52,10 +52,10 @@ go test ./...
 
 `config.yaml-dist`が正典のドキュメント。主なセクション:
 
-- `logdir:` — 生テレグラムの保存先。省略するとアーカイブ無効。
+- `logdir:` — 受信電文の保存先。省略するとアーカイブ無効。旧WNIアーカイブ（`<地震ID>.<報番号>`、Shift_JISのコード電文）と同じ`YYYY/MM/DD`（地震IDの日付）のツリーに、DMDATAの受信メッセージを`<EventID>.<Serial>_<受信時刻>_<メッセージID>.json`（受信バイト列そのまま）として保存する（ユーザー決定: 新旧の保存パスを揃える）。EventID/Serialは外側JSONの`xmlReport.head`から取り、取れなければ受信日時のフォルダに`<受信時刻>_<メッセージID>.json`。eew-viewは`EEW_DATA_DIR`1つで新旧両方を読む。
 - `irc:` — **YAMLの配列**（複数IRCサーバに対応、Perl版は単一サーバのみだった）。各要素は`server.{host,port,password,charset,message-type}` / `nick` / `name` / `desc` / `all-notice` / `limited-notice`（いずれもYAMLリスト）。`charset`未設定時は**UTF-8**がデフォルト（Perl版は`iso-2022-jp`が暗黙デフォルトだったが、意図的に変更済み・ユーザー承認済み）。`message-type`は`notice`（既定、Perl版の`IRCSock::notice`と同じ）または`privmsg`。
 - `slack:` — `all`/`limited`の2階層。`all`は常に全報通知、`limited`は新規地震/最終報/取消のみ。
-- `dmdata:` — `api-key`、`app-name`、`archive-dir`（生データ保存先）、`api-base`（偽サーバ向け）のみ。受信する区分(`eew.forecast`)・種別(`VXSE45`)・テスト電文なし・`formatMode: raw`は通知処理がそれしか扱えないため**設定項目にせずコードに固定**（`internal/app`、ユーザー決定: 変更不要な設定項目は置かない）。
+- `dmdata:` — `api-key`、`app-name`、`api-base`（偽サーバ向け）のみ（保存先はトップレベルの`logdir`）。受信する区分(`eew.forecast`)・種別(`VXSE45`)・テスト電文なし・`formatMode: raw`は通知処理がそれしか扱えないため**設定項目にせずコードに固定**（`internal/app`、ユーザー決定: 変更不要な設定項目は置かない）。
 
 **古いPerl形式の`irc:`（単一マッピング）は今は意図的にエラーになる**（`internal/config/config_test.go`の`TestLoad_RejectsOldStyleIRCSection`が仕様として明記）。IRC対応が存在しなかった頃のGo版は`irc:`セクションを無視していたが、今は実際にパースする。
 
@@ -139,7 +139,7 @@ WNIのFastCaster配信が終了したため、WNI関連コード（`internal/wni
   - 防御の二段目として、IRC/Slackへの送信直前に完成文面全体からCR/LFを除去する。IRCは1メッセージ＝CR-LF終端の1行で、本文(trailing)にNUL/CR/LFを含められない（RFC 1459/2812 §2.3、RFC 1459 §8は「CRかLFが単独で現れても行末とみなす実装がある」と注記）。goirc v1.3.5の`Conn.Raw`はコマンド注入防止のため`cutNewLines`で**最初のCR/LF以降を黙って切り捨てる**ので、改行が混入すると注入にはならないが、震央名以降（深さ・M・震度）が通知から無言で欠落する。
 - VXSE45の一次資料は気象庁「地震火山関連 解説資料」（xml.kishou.go.jp の技術資料ページの解説資料セット内、緊急地震速報の内容部はⅡ.21節）。最終報=`Body/NextAdvisory`の出現（`Epicenter@rank2="9"`は「震源・Mの精度が最終報相当」で最終報の目印ではない、公式サンプルでも最終報前から9になる）、取消=`Head/InfoType`が「取消」（本文は`Text`のみ・`Serial`は直前と同じ番号のまま＝EventID+Serialは一意でない・最終報を経ずに取消で終わることがある）。
 - Slack/IRCへ流す文面は既存フォーマット（`internal/eewmsg`）を踏襲する（ユーザー要望）。XMLから再現できない差異が出る場合は個別に報告して判断を仰ぐ。
-- 段階: (1)受信+生データ保存（2026-11-12完了、実受信で確認） / (2)VXSE45解析+通知 ← 現在 / (3)保存形式確定+eew-view対応 / (4)docs・Docker・本番切替。旧`logdir`（eewlog）にはもう書き込まない（eew-viewの旧アーカイブとして残る）。
+- 段階: (1)受信+生データ保存（2026-11-12完了、実受信で確認） / (2)VXSE45解析+通知 ← 現在 / (3)保存形式確定+eew-view対応 / (4)docs・Docker・本番切替。
 - **通知文面（ユーザー決定）**: 旧WNIコード電文由来の形式を踏襲する。`{発表時刻} 第{Serial}報[(最終)][(訂正)] ({発生時刻}発生)震央:<地図URL|N{緯度}/E{経度}>({震央名})深さ{D} 最大:M{M} 震度{I}`、取消は`{発表時刻} 第{Serial}報 ({発生時刻}発生) 取り消されました`、タイトルは「高度利用者向け緊急地震速報」のまま。対応と決定事項:
   - 発表時刻=`ReportDateTime`、報番号=`Serial`（取消報もXMLの値そのまま。旧電文と違い取消で番号は増えない）、発生時刻=`OriginTime`（旧電文2行目「地震発生時刻もしくは地震検知時刻」と同義、コード電文解説資料で確認）、震央名=`Hypocenter/Area/Name`（`ReduceName`ではない）。
   - 発生時刻が無い報（最大予測震度のみ等）は「(…発生)」部分ごと出さない。取消報は同じEventIDの直前報の`OriginTime`を使う（`eew.OriginCache`、地震IDごと・直近64地震分。複数地震の速報が同時に来るため）。覚えていなければ出さない。

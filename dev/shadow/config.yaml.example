@@ -1,5 +1,8 @@
 # Config for the dev/shadow compose stack. Copy to config.yaml (gitignored).
 
+# Received telegrams are archived here (bind-mounted ./data).
+logdir: /data
+
 irc:
  - server:
     host: ergo          # the compose service name
@@ -24,4 +27,3 @@ dmdata:
  # Distinct from any other instance using the same key (stale sockets of
  # the same app-name are closed at startup).
  app-name: irc-eew-shadow
- archive-dir: /data/dmdatalog

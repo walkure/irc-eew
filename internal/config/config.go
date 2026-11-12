@@ -13,7 +13,10 @@ import (
 
 // Config is the root of the YAML configuration.
 type Config struct {
-	// LogDir, if set, enables raw-telegram archival (see internal/eewlog).
+	// LogDir, if set, enables archival of every received telegram (see
+	// internal/rawarchive), in the same YYYY/MM/DD tree as the legacy WNI
+	// archive (internal/eewlog) so internal/eewview reads both from one
+	// place. Omitted/empty means "don't save EEW data", as before.
 	// Omitted/empty means "don't save EEW data", matching irc-eew.pl.
 	LogDir string       `yaml:"logdir"`
 	Slack  *SlackConfig `yaml:"slack"`
@@ -124,10 +127,6 @@ type DMDATAConfig struct {
 	// What to subscribe to (classification, telegram type, test telegrams,
 	// format mode) is deliberately not configurable: the notifier only
 	// understands VXSE45 in JMA XML, so it's fixed in internal/app.
-	// ArchiveDir, if set, saves every received data message verbatim (see
-	// internal/rawarchive). Separate from logdir, whose layout belongs to
-	// the legacy WNI archive read by eew-view.
-	ArchiveDir string `yaml:"archive-dir"`
 	// APIBase overrides the REST API root (default https://api.dmdata.jp);
 	// for pointing at internal/dmdatasim during verification only.
 	APIBase string `yaml:"api-base"`

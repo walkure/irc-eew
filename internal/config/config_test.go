@@ -54,7 +54,7 @@ func TestLoad_DistExample(t *testing.T) {
 		t.Fatalf("Slack.Limited: got %d entries, want 2", len(cfg.Slack.Limited))
 	}
 
-	if cfg.DMDATA.APIKey != "AKe.yourapikey" || cfg.DMDATA.ArchiveDir != "./dmdatalog" {
+	if cfg.DMDATA.APIKey != "AKe.yourapikey" {
 		t.Errorf("DMDATA: got %+v", cfg.DMDATA)
 	}
 	d := cfg.DMDATA.WithDefaults()
