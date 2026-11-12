@@ -163,3 +163,14 @@ func TestDecode_EmptyInput(t *testing.T) {
 		t.Errorf("expected zero-value Telegram, got %+v", tel)
 	}
 }
+
+func TestDecode_UnknownFlags(t *testing.T) {
+	cancel := Decode(readFixture(t, "2011_cancellation.txt"))
+	if !cancel.CenterUnknown || !cancel.DepthUnknown || !cancel.MagnitudeUnknown {
+		t.Errorf("cancellation: expected all-unknown flags, got %v %v %v", cancel.CenterUnknown, cancel.DepthUnknown, cancel.MagnitudeUnknown)
+	}
+	normal := Decode(readFixture(t, "2011_new_report.txt"))
+	if normal.CenterUnknown || normal.DepthUnknown || normal.MagnitudeUnknown {
+		t.Errorf("new report: expected known values, got %v %v %v", normal.CenterUnknown, normal.DepthUnknown, normal.MagnitudeUnknown)
+	}
+}

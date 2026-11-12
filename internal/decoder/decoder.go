@@ -35,7 +35,12 @@ type Telegram struct {
 	CenterLat, CenterLng   float64
 	CenterDepth            int
 	Magnitude              float64
-	Shindo, ShindoCode     string
+	// CenterUnknown, DepthUnknown and MagnitudeUnknown record that the
+	// corresponding code was "/"-filled (不明・未設定・キャンセル), which
+	// the numeric fields above can't express (they read as 0). Not part of
+	// the Perl original; added so viewers can show 不明 instead of 0.
+	CenterUnknown, DepthUnknown, MagnitudeUnknown bool
+	Shindo, ShindoCode                            string
 
 	CenterAccurateCode    string
 	CenterAccurate        string
@@ -89,6 +94,12 @@ func Decode(raw []byte) *Telegram {
 		case tryHypocenter(t, line):
 		case tryEBI(t, line):
 		}
+	}
+	if t.CenterCode == "" {
+		// No hypocenter line matched at all — e.g. a cancellation, whose
+		// line is "/// //// ///// ..." without the N/E markers the pattern
+		// requires. Everything it would have carried is unknown.
+		t.CenterUnknown, t.DepthUnknown, t.MagnitudeUnknown = true, true, true
 	}
 	return t
 }
@@ -156,6 +167,9 @@ func tryHypocenter(t *Telegram, line string) bool {
 	t.CenterLng = float64(parseIntOrZero(m[3])) / 10
 	t.CenterDepth = parseIntOrZero(m[4])
 	t.Magnitude = float64(parseIntOrZero(m[5])) / 10
+	t.CenterUnknown = strings.Contains(m[2]+m[3], "/")
+	t.DepthUnknown = strings.Contains(m[4], "/")
+	t.MagnitudeUnknown = strings.Contains(m[5], "/")
 	t.ShindoCode = m[6]
 	t.Shindo = Shindo[m[6]]
 
