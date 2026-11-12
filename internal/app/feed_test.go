@@ -82,6 +82,54 @@ func TestFeedLoop_ArchivesAndReconnects(t *testing.T) {
 	}
 }
 
+// The archive must hold the received bytes exactly, not a re-encoding:
+// whitespace, key order, \u escapes and a trailing newline in a
+// non-canonical message all have to survive.
+func TestFeedLoop_ArchivesReceivedBytesVerbatim(t *testing.T) {
+	const key = "AKe.test"
+	srv := dmdatasim.New(key)
+	t.Cleanup(srv.Close)
+
+	dir := t.TempDir()
+	archive, err := rawarchive.Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	client := &dmdata.Client{
+		API:     dmdata.NewAPI(srv.URL(), key),
+		Request: dmdata.SocketStartRequest{Classifications: []string{"eew.forecast"}, Types: []string{"VXSE45"}},
+	}
+	received := make(chan struct{}, 1)
+	h := dmdata.Handlers{OnData: func(m *dmdata.DataMessage) {
+		handleData(archive, m)
+		received <- struct{}{}
+	}}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() { defer close(done); _ = runFeedLoop(ctx, client, h) }()
+	t.Cleanup(func() { cancel(); <-done })
+
+	id := <-srv.Connected()
+	raw := []byte("{ \"body\" : \"\\u3042\\n\",\r\n\t\"encoding\":\"utf-8\" ,\"type\":\"data\",\n" +
+		"  \"compression\":null, \"format\":\"xml\", \"id\":\"abcdef0123\",\n" +
+		"  \"head\":{\"type\":\"VXSE45\",\"xml\":true}, \"classification\":\"eew.forecast\"}\n")
+	if err := srv.SendRaw(id, raw); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-received:
+	case <-time.After(5 * time.Second):
+		t.Fatal("data not received")
+	}
+	files, _ := filepath.Glob(filepath.Join(dir, "*", "*", "*", "*_abcdef0123.json"))
+	if len(files) != 1 {
+		t.Fatalf("archived files = %v, want 1", files)
+	}
+	if got, _ := os.ReadFile(files[0]); !bytes.Equal(got, raw) {
+		t.Errorf("archived bytes differ from received bytes:\n got  %q\n want %q", got, raw)
+	}
+}
+
 // A fatal error must end the loop (so the process exits) instead of being
 // retried forever.
 func TestFeedLoop_FatalErrorStopsLoop(t *testing.T) {
