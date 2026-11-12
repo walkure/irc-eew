@@ -18,8 +18,9 @@ cmd/eew-replay/     開発/検証用: 保存済みテレグラムをdecode→for
 internal/dmdata/    DMDATA.JP API v2クライアント（Socket Start/Close + WebSocket v2受信）
 internal/dmdatasim/ テスト用のフェイクDMDATAサーバ（チケット使い捨て・ping/pong・接続枠を再現）
 internal/rawarchive/ DMDATAのdataメッセージを受信したまま保存（eewlogとは別レイアウト）
+internal/eew/       配信元に依存しないEEW報モデル、VXSE45 XMLパーサ（値の正規化込み）、地震ID単位の上限付き記憶（RecentSet/OriginCache）
 internal/decoder/   旧コード電文(WNI時代)のEEWデコーダ（tables_gen.goはPerl版Decoder.pmから生成した対照表）
-internal/eewmsg/    デコード済みテレグラム → Slack向けメッセージ整形
+internal/eewmsg/    通知文面の整形（FormatReport: VXSE45→旧WNI電文と同形の文面、Format: 旧コード電文用でeew-replayが使用）
 internal/eewlog/    生テレグラムのアーカイブ保存（ディレクトリ/ファイル名レイアウトはeew-viewと共有契約）
 internal/slack/     Slack incoming-webhook送信（リトライ・レート制限対応）
 internal/notify/    Slack hookの「all/limited」振り分け判定
@@ -103,6 +104,7 @@ go test ./...
 
 - リトライ: Perlは完全に投げっぱなし（1回POSTするだけで、失敗時は何もしない）。Goは429/5xxで最大3回リトライ、`Retry-After`尊重、30秒のタイムアウト予算を持つ。**この差異は無確認のまま実装されていたことが今回の調査で判明し、容認済み**（堅牢性としては改善だが、失敗フックへ同一電文が最大3回POSTされうる・1フックが最大30秒goroutineを占有しうるという副作用がある）。
 - それ以外（メッセージ本文/タイトルの組み立て、all/limited振り分け条件、hookの表示名フォールバック等）はPerl(`SlackWebhookSock.pm`/`irc-eew.pl`)と忠実に一致することを確認済み。
+- limited振り分けの「新しい地震」判定（DMDATA移行時に変更、ユーザー承認済み）: Perlは直前1件のeq_idと比較していたため、複数地震の報が交互に届くと切り替わるたびにlimitedが発火した。Goは直近64地震分のEventIDを記憶（`eew.RecentSet`）し、各地震の初報・最終報・取消報のみlimitedへ送る。IRCの`irc.Dispatcher`も同じ方式（接続ごとに独立した記憶）。
 
 ### eew-view（internal/eewview）
 
@@ -137,7 +139,13 @@ WNIのFastCaster配信が終了したため、WNI関連コード（`internal/wni
   - 防御の二段目として、IRC/Slackへの送信直前に完成文面全体からCR/LFを除去する。IRCは1メッセージ＝CR-LF終端の1行で、本文(trailing)にNUL/CR/LFを含められない（RFC 1459/2812 §2.3、RFC 1459 §8は「CRかLFが単独で現れても行末とみなす実装がある」と注記）。goirc v1.3.5の`Conn.Raw`はコマンド注入防止のため`cutNewLines`で**最初のCR/LF以降を黙って切り捨てる**ので、改行が混入すると注入にはならないが、震央名以降（深さ・M・震度）が通知から無言で欠落する。
 - VXSE45の一次資料は気象庁「地震火山関連 解説資料」（xml.kishou.go.jp の技術資料ページの解説資料セット内、緊急地震速報の内容部はⅡ.21節）。最終報=`Body/NextAdvisory`の出現（`Epicenter@rank2="9"`は「震源・Mの精度が最終報相当」で最終報の目印ではない、公式サンプルでも最終報前から9になる）、取消=`Head/InfoType`が「取消」（本文は`Text`のみ・`Serial`は直前と同じ番号のまま＝EventID+Serialは一意でない・最終報を経ずに取消で終わることがある）。
 - Slack/IRCへ流す文面は既存フォーマット（`internal/eewmsg`）を踏襲する（ユーザー要望）。XMLから再現できない差異が出る場合は個別に報告して判断を仰ぐ。
-- 段階: (1)受信+生データ保存のみ・通知なし ← 現在 / (2)実データを見て解析+通知 / (3)保存形式確定+eew-view対応 / (4)docs・Docker・本番切替。
+- 段階: (1)受信+生データ保存（2026-11-12完了、実受信で確認） / (2)VXSE45解析+通知 ← 現在 / (3)保存形式確定+eew-view対応 / (4)docs・Docker・本番切替。旧`logdir`（eewlog）にはもう書き込まない（eew-viewの旧アーカイブとして残る）。
+- **通知文面（ユーザー決定）**: 旧WNIコード電文由来の形式を踏襲する。`{発表時刻} 第{Serial}報[(最終)][(訂正)] ({発生時刻}発生)震央:<地図URL|N{緯度}/E{経度}>({震央名})深さ{D} 最大:M{M} 震度{I}`、取消は`{発表時刻} 第{Serial}報 ({発生時刻}発生) 取り消されました`、タイトルは「高度利用者向け緊急地震速報」のまま。対応と決定事項:
+  - 発表時刻=`ReportDateTime`、報番号=`Serial`（取消報もXMLの値そのまま。旧電文と違い取消で番号は増えない）、発生時刻=`OriginTime`（旧電文2行目「地震発生時刻もしくは地震検知時刻」と同義、コード電文解説資料で確認）、震央名=`Hypocenter/Area/Name`（`ReduceName`ではない）。
+  - 発生時刻が無い報（最大予測震度のみ等）は「(…発生)」部分ごと出さない。取消報は同じEventIDの直前報の`OriginTime`を使う（`eew.OriginCache`、地震IDごと・直近64地震分。複数地震の速報が同時に来るため）。覚えていなければ出さない。
+  - 不明値は「不明」と表示（旧実装は0扱いで`深さ0km`/`M0.0`/`N0.0/E0.0`だったが、深さ0kmは核実験等と区別できないため変更）: `深さ不明`、`M不明`、座標不明は地図リンクなしの`震央:不明(…)`。`ごく浅い`/`700km以上`はそのまま表記。
+  - 予測震度は`ForecastInt`のFrom/Toで表現: 同値`震度6弱`、To=over`震度5弱程度以上`、幅あり`震度4から5強程度`、不明または要素なし`震度不明`、0は`震度0`（旧コード電文は0と不明が同じ`//`だった）。
+  - 訓練/試験（`Control/Status`が通常以外）・VXSE45以外・XML以外・解析不能な電文は通知しない（警告ログのみ、生データは保存済み）。`InfoType`訂正は報番号の後ろに`(訂正)`を付けて通知する（最終報の訂正は`第N報(最終)(訂正)`）（ユーザー決定）。
 - 起動時と接続数上限(409)時に、同じ`app-name`で残っている`open`/`waiting`ソケットをSocket List→Socket Closeで掃除する（前回プロセスが異常終了した場合の枠解放）。**同じAPIキーでshadowと本番を同時に動かすときは`app-name`を必ず分けること**（同名だと互いの接続を切る）。APIキーに必要な権限: `socket.start`・`socket.list`・`socket.close`・`eew.get.forecast`。
 - エラー処理（`internal/dmdata/errors.go`の`Classify`）: リトライで直らないもの（Socket Startの400/401/402/403、WSの4400/4807、要求した区分・種別が許可されない）は**プロセスを終了コード1で終了**（「未課金ならエラーで終了すべき」というユーザー要望に基づく。契約切れ等を再起動ループとして可視化する）。それ以外（409/429/5xx/通信エラー、WSの4404/4409/4640/4641/4891/未知コード、および4808＝コントロールパネル等からの明示的切断〔ユーザー判断で一時的扱い〕）はバックオフで再接続。4503（サーバー再起動）はログレベルがINFOになるだけで、待ち時間は「30秒以上安定していたら1秒に戻す」通常規則に任せる（接続直後に4503を返し続ける障害で1秒間隔の再接続を繰り返さないため）。
 - 生データは`data`メッセージ全体を受信したまま保存する方針（ユーザー承認済み）。閲覧用の派生形式（CBOR等）が要れば段階3で検討。
