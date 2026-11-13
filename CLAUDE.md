@@ -45,6 +45,7 @@ go test ./...
   ```
 
   Dockerが必要（GitHub ActionsのCIジョブ`irctest`ではubuntu-latest標準搭載のDockerをそのまま使っている、追加セットアップ不要）。
+  この開発機（Windows + Docker Desktop）ではtestcontainersの後片付け用コンテナ（ryuk）が起動せず`reaper: … "Started" matched 0 times`で全テストが失敗するので、`TESTCONTAINERS_RYUK_DISABLED=true go test -tags irctest ./internal/irc/...`で実行する（コード側の問題ではない）。失敗時に未起動のergoコンテナ（`Created`状態）が残ることがあるので、その場合は作成日時を確認して削除する。
 - Windowsでの`go test -race`はこの環境ではツールチェイン起因で失敗することがある（`0xc0000139`終了コード）。コード側の問題ではなくローカル環境の制約として認識しておくこと。
 
 ## 設定ファイル (config.yaml)
