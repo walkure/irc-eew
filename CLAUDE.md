@@ -68,7 +68,7 @@ go test ./...
 
 ## Docker/CI
 
-- `Dockerfile.golang`（notifier）・`Dockerfile.eew-view.golang`（viewer）はどちらも`FROM scratch`のマルチステージビルド。`CGO_ENABLED=0`、タイムゾーンは`time/tzdata`のblank import + `ENV TZ=Asia/Tokyo`（scratchには`/usr/share/zoneinfo`が無い）。
+- `Dockerfile`（notifier）・`Dockerfile.eew-view`（viewer）はどちらも`FROM scratch`のマルチステージビルド。`CGO_ENABLED=0`、タイムゾーンは`time/tzdata`のblank import + `ENV TZ=Asia/Tokyo`（scratchには`/usr/share/zoneinfo`が無い）。
 - `.github/workflows/go-test.yaml` — 通常のbuild/vet/test、および`irctest`ジョブ（`-tags irctest`）。
 - `.github/workflows/build.yaml` — `v*`タグpush時にghcr.ioへ両イメージを公開。`.github/actions/build`が共通の合成アクション。
 - イメージは`ghcr.io/walkure/irc-eew`と`ghcr.io/walkure/eew-view`の2つ。バージョンは`git tag`（例: `v1.3.0`）で管理。

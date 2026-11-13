@@ -24,7 +24,7 @@ jobs:
         uses: ./.github/actions/build
         with:
           context: .
-          dockerfile: Dockerfile.golang
+          dockerfile: Dockerfile
           artifact: irc-eew
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -43,6 +43,6 @@ jobs:
         uses: ./.github/actions/build
         with:
           context: .
-          dockerfile: Dockerfile.eew-view.golang
+          dockerfile: Dockerfile.eew-view
           artifact: eew-view
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

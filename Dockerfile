@@ -1,10 +1,10 @@
-# Dockerfile.golang — Go port of irc-eew (Slack-only). FROM scratch: the
+# Dockerfile — the irc-eew notifier (cmd/eew-notifier). FROM scratch: the
 # binary is statically linked (CGO_ENABLED=0) and needs nothing else from
 # an OS layer at runtime.
 #
-# - TLS to Slack's webhooks needs CA certs, so the builder stage's
-#   ca-certificates bundle is copied in directly (no package manager in
-#   scratch to install it with).
+# - TLS to DMDATA.JP and Slack's webhooks needs CA certs, so the builder
+#   stage's ca-certificates bundle is copied in directly (no package
+#   manager in scratch to install it with).
 # - Asia/Tokyo localtime (for readable log timestamps) is resolved from the
 #   IANA database embedded in the binary via a `time/tzdata` blank import
 #   (see cmd/eew-notifier/main.go) plus ENV TZ below, rather than copying
@@ -12,10 +12,6 @@
 # - No useradd/adduser is available either, so the non-root user is set by
 #   raw UID:GID (1000:1000); nothing in this program looks up its own
 #   username, so no /etc/passwd entry is needed.
-#
-# Once the Go port replaces the Perl original in production, this file
-# loses the ".golang" suffix and takes over as the repo's canonical
-# Dockerfile.
 
 FROM golang:1.25-alpine AS builder
 RUN apk add --no-cache ca-certificates

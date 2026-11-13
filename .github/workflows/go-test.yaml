@@ -7,8 +7,8 @@ on:
       - 'internal/**'
       - 'go.mod'
       - 'go.sum'
-      - 'Dockerfile.golang'
-      - 'Dockerfile.eew-view.golang'
+      - 'Dockerfile'
+      - 'Dockerfile.eew-view'
       - '.github/workflows/go-test.yaml'
   pull_request:
     paths:
@@ -16,8 +16,8 @@ on:
       - 'internal/**'
       - 'go.mod'
       - 'go.sum'
-      - 'Dockerfile.golang'
-      - 'Dockerfile.eew-view.golang'
+      - 'Dockerfile'
+      - 'Dockerfile.eew-view'
       - '.github/workflows/go-test.yaml'
 
 jobs:

@@ -15,7 +15,7 @@ import (
 
 	// The production image runs FROM scratch (no on-disk zoneinfo files),
 	// so the IANA timezone database is embedded in the binary instead. See
-	// Dockerfile.eew-view.golang's ENV TZ=Asia/Tokyo.
+	// Dockerfile.eew-view's ENV TZ=Asia/Tokyo.
 	_ "time/tzdata"
 
 	"github.com/walkure/irc-eew/internal/eewview"

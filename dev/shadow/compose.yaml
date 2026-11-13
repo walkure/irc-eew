@@ -41,7 +41,7 @@ services:
   viewer:
     build:
       context: ../..
-      dockerfile: Dockerfile.eew-view.golang
+      dockerfile: Dockerfile.eew-view
     image: eew-view:shadow
     environment:
       EEW_DATA_DIR: /data
@@ -54,7 +54,7 @@ services:
   notifier:
     build:
       context: ../..
-      dockerfile: Dockerfile.golang
+      dockerfile: Dockerfile
     image: irc-eew:shadow
     depends_on:
       - ergo
