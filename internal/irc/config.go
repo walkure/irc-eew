@@ -19,7 +19,7 @@ func clientConfig(srv config.IRCServerConfig) *goirc.Config {
 	cfg := goirc.NewConfig(srv.Nick, srv.Name, srv.Desc)
 	cfg.Server = net.JoinHostPort(srv.Server.Host, strconv.Itoa(srv.Server.Port))
 	cfg.Pass = srv.Server.Password
-	// No flood control, matching irc-eew.pl (README.ja.md: "現時点では未対策").
+	// No flood control, matching irc-eew.pl (the Perl-era README.ja.md: "現時点では未対策").
 	cfg.Flood = true
 	return cfg
 }
