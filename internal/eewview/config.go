@@ -34,7 +34,10 @@ type Config struct {
 // the same defaults as the Perl originals.
 func LoadConfigFromEnv() Config {
 	return Config{
-		DataDir:    envOr("EEW_DATA_DIR", "./eewlog/"),
+		// '/eewlog/', exactly as HTML/index.pl and eew-show.pl had it. The
+		// Go port had silently changed it to './eewlog/' (and broke a
+		// production deployment that relied on the default).
+		DataDir:    envOr("EEW_DATA_DIR", "/eewlog/"),
 		PathBase:   envOr("EEW_PATH_BASE", "./"),
 		ViewerPath: envOr("EEW_VIEWER", "eew-show"),
 		ListenAddr: envOr("EEW_LISTEN_ADDR", ":8080"),

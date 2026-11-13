@@ -121,3 +121,17 @@ func readBody(t *testing.T, resp *http.Response) string {
 	}
 	return string(b)
 }
+
+// The defaults must stay exactly the Perl originals' (HTML/index.pl,
+// HTML/eew-show.pl); EEW_DATA_DIR's was once silently changed to
+// "./eewlog/", breaking a deployment relying on it.
+func TestLoadConfigFromEnv_PerlDefaults(t *testing.T) {
+	for _, k := range []string{"EEW_DATA_DIR", "EEW_PATH_BASE", "EEW_VIEWER", "EEW_LISTEN_ADDR"} {
+		t.Setenv(k, "")
+	}
+	got := LoadConfigFromEnv()
+	want := Config{DataDir: "/eewlog/", PathBase: "./", ViewerPath: "eew-show", ListenAddr: ":8080"}
+	if got != want {
+		t.Errorf("LoadConfigFromEnv() = %+v, want %+v", got, want)
+	}
+}
