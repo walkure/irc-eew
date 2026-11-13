@@ -40,7 +40,11 @@ type Telegram struct {
 	// the numeric fields above can't express (they read as 0). Not part of
 	// the Perl original; added so viewers can show 不明 instead of 0.
 	CenterUnknown, DepthUnknown, MagnitudeUnknown bool
-	Shindo, ShindoCode                            string
+	// AssumedHypocenter marks 仮定震源要素 (RT n3 = 9: only the PLUM
+	// method is valid; depth 010 and M 10 are fixed placeholders and the
+	// position is the triggering station's). Not part of the Perl original.
+	AssumedHypocenter  bool
+	Shindo, ShindoCode string
 
 	CenterAccurateCode    string
 	CenterAccurate        string
@@ -185,6 +189,7 @@ func tryHypocenter(t *Telegram, line string) bool {
 	t.IsSeaCode = charAt(rt, 0)
 	t.IsSea = RT1[t.IsSeaCode]
 	t.IsWarnded = charAt(rt, 1)
+	t.AssumedHypocenter = charAt(rt, 2) == "9"
 	return true
 }
 

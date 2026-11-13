@@ -86,6 +86,7 @@ func TestFormatReport_UnknownsAndRanges(t *testing.T) {
 		{"intensity absent", func(r *eew.Report) { r.Intensity = eew.Intensity{} }, "震度不明"},
 		{"final", func(r *eew.Report) { r.Final = true }, "第2報(最終) 震央:"},
 		{"corrected", func(r *eew.Report) { r.InfoType = eew.Corrected }, "第2報(訂正) 震央:"},
+		{"assumed", func(r *eew.Report) { r.AssumedHypocenter = true }, "震央:<http://maps.google.com/maps?q=45.0,150.0|N45.0/E150.0>(千島列島)深さ仮定 最大:M仮定 震度4"},
 		{"corrected final", func(r *eew.Report) { r.Final = true; r.InfoType = eew.Corrected }, "第2報(最終)(訂正) 震央:"},
 	}
 	for _, c := range cases {

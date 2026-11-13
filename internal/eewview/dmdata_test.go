@@ -200,7 +200,9 @@ func TestDMDATA_MixedWithLegacySameDay(t *testing.T) {
 		t.Fatal(err)
 	}
 	writeDMDATA(t, dir, "real_20261112113529_01.xml", "20110312000000.1_20110312000010.000_bb01",
-		func(s string) string { return strings.Replace(s, "<EventID>20261112113529</EventID>", "<EventID>20110312000000</EventID>", 1) })
+		func(s string) string {
+			return strings.Replace(s, "<EventID>20261112113529</EventID>", "<EventID>20110312000000</EventID>", 1)
+		})
 	srv := serverFor(t, dir)
 	defer srv.Close()
 
@@ -232,5 +234,18 @@ func TestRecordPath(t *testing.T) {
 		if _, err := recordPath("/data", n); err == nil {
 			t.Errorf("%q accepted", n)
 		}
+	}
+}
+
+// 2026-11-13 熊本県熊本地方, report 1 as received live: a PLUM-only
+// 仮定震源要素 report whose depth 10km / M1.0 are placeholders.
+func TestDMDATA_AssumedHypocenterFromRealArchive(t *testing.T) {
+	srv := newTestServer(t)
+	defer srv.Close()
+
+	list := get(t, srv, "/?year=2026&month=11&day=13")
+	want := "10:52:29第01報　　　　 (10:52:24発生)震央:N32.5/E130.6(熊本県熊本地方)深さ仮定 最大:M仮定 震度3程度以上"
+	if !strings.Contains(list, want) {
+		t.Errorf("listing missing %q:\n%s", want, list)
 	}
 }

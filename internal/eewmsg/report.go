@@ -31,6 +31,8 @@ const timeLayout = "2006/01/02 15:04:05"
 //     震度不明.
 //   - the "(…発生)" part is omitted when no origin time is known.
 //   - a correction (InfoType 訂正) is marked "(訂正)" after the serial.
+//   - for 仮定震源要素 (PLUM-only) the placeholder depth/M read 深さ仮定 and
+//     M仮定; the position (the triggering station's) is shown as usual.
 //
 // originFallback is used when r has no OriginTime (a cancellation): the
 // caller passes the origin time of the latest earlier report for the same
@@ -82,7 +84,11 @@ func center(r *eew.Report) string {
 		mapURI := fmt.Sprintf("http://maps.google.com/maps?q=%.1f,%.1f", *r.Lat, *r.Lon)
 		pos = fmt.Sprintf("<%s|N%.1f/E%.1f>", mapURI, *r.Lat, *r.Lon)
 	}
-	return "震央:" + pos + "(" + name + ")深さ" + depth(r.Depth)
+	d := depth(r.Depth)
+	if r.AssumedHypocenter {
+		d = "仮定"
+	}
+	return "震央:" + pos + "(" + name + ")深さ" + d
 }
 
 func depth(d eew.Depth) string {
@@ -100,7 +106,12 @@ func depth(d eew.Depth) string {
 
 func magnitude(r *eew.Report) string {
 	m := "M不明"
-	if r.Magnitude != nil {
+	if r.AssumedHypocenter {
+		// 仮定震源要素 (PLUM only): depth 10km and M1.0 are fixed
+		// placeholders, not estimates; the position is the triggering
+		// station's and is kept (user decision).
+		m = "M仮定"
+	} else if r.Magnitude != nil {
 		m = fmt.Sprintf("M%.1f", *r.Magnitude)
 	}
 	return " 最大:" + m + " 震度" + intensity(r.Intensity)

@@ -106,3 +106,23 @@ func TestIsFinalForViewer_DiffersFromDecoderIsFinal(t *testing.T) {
 		t.Error("isFinalForViewer(NCNType=6) should be false (6 means correction, not final)")
 	}
 }
+
+func TestLegacyRecord_AssumedHypocenter(t *testing.T) {
+	raw := "36 04 00 160414212639 C11\n160414212636\nND20160414212638 NCN002 JD////////////// JN///\n" +
+		"741 N328 E1307 010 10 04 RK11811 RT/09// RC0////\n9999=\n"
+	r := legacyRecord("20160414212638.2", decoder.Decode([]byte(raw)))
+	got := ListSummaryText(r)
+	if !strings.Contains(got, "震央:N32.8/E130.7(") || !strings.Contains(got, "深さ仮定 最大:M仮定") {
+		t.Errorf("%q", got)
+	}
+	fields := buildFields(r)
+	found := false
+	for _, f := range fields {
+		if f.Label == "震央位置" && strings.Contains(string(f.Value), "(仮定震源要素)") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("震央位置 should be marked 仮定震源要素: %+v", fields)
+	}
+}

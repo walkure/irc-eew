@@ -98,6 +98,10 @@ func legacyRecord(name string, t *decoder.Telegram) *record {
 	if t.Shindo != "" {
 		r.MaxIntText = t.Shindo
 	}
+	if t.AssumedHypocenter {
+		r.Assumed = true
+		r.DepthText, r.MagText = "仮定", "M仮定"
+	}
 	switch t.IsSea {
 	case "陸":
 		r.LandSea = "内陸"
@@ -266,6 +270,10 @@ func dmdataRecord(name string, received time.Time, rep *eew.Report) *record {
 	r.MagText = "M不明"
 	if rep.Magnitude != nil {
 		r.MagText = fmt.Sprintf("M%.1f", *rep.Magnitude)
+	}
+	if rep.AssumedHypocenter {
+		// Placeholders (depth 10km, M1.0), shown as 仮定 like the notifier.
+		r.DepthText, r.MagText = "仮定", "M仮定"
 	}
 	r.MaxIntText = intensityText(rep.Intensity, shindoLabel)
 	if rep.LgIntensity.Present {

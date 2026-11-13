@@ -174,3 +174,16 @@ func TestDecode_UnknownFlags(t *testing.T) {
 		t.Errorf("new report: expected known values, got %v %v %v", normal.CenterUnknown, normal.DepthUnknown, normal.MagnitudeUnknown)
 	}
 }
+
+func TestDecode_AssumedHypocenter(t *testing.T) {
+	// PLUM-only example from the code telegram manual (RT/09//).
+	raw := "36 04 00 160414212639 C11\n160414212636\nND20160414212638 NCN002 JD////////////// JN///\n" +
+		"741 N328 E1307 010 10 04 RK11811 RT/09// RC0////\nEBI 741 S04// 212639 09 743 S04// 212639 09\n9999=\n"
+	tel := Decode([]byte(raw))
+	if !tel.AssumedHypocenter || tel.CenterUnknown || tel.CenterDepth != 10 {
+		t.Errorf("got assumed=%v unknown=%v depth=%d", tel.AssumedHypocenter, tel.CenterUnknown, tel.CenterDepth)
+	}
+	if Decode(readFixture(t, "2011_new_report.txt")).AssumedHypocenter {
+		t.Error("ordinary report flagged as assumed")
+	}
+}
