@@ -110,6 +110,7 @@ go test ./...
 
 ### eew-view（internal/eewview）
 
+- `EEW_DATA_DIR`の既定値: Perlは`/eewlog/`。Go移植時（`e70a8e8`）から`./eewlog/`に黙って変わっていたのを2026-11-13に発見し、`/eewlog/`に戻した（`acf8eb9`、ユーザー指示）。4つの環境変数の既定値は`TestLoadConfigFromEnv_PerlDefaults`で固定。
 - `EEW_VIEWER`設定: Perlはhref生成とlighttpdルート定義の2箇所で独立設定（ドリフトしうる）。Goは`ViewerPath`1箇所に統合。意図的改善。
 - 一覧ページの「最終報」判定: Perl・Goとも`NCN_type>=8`。通知本体側`Telegram.IsFinal()`（`>0`判定）とは別概念で、意図的に統一していない。
 - 詳細ページ震源深度行: Perlは`center_accurate`を誤表示するバグ。Goは`DepthAccurate`を正しく表示。バグ修正（意図的、既に実施済み）。
