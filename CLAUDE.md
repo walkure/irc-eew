@@ -13,7 +13,7 @@
 ```text
 cmd/eew-notifier/   本体デーモン(DMDATA受信 → Slack/IRC通知)
 cmd/eew-view/       EEWアーカイブの閲覧用Webビューア(元HTML/index.pl+eew-show.pl)
-cmd/eew-replay/     開発/検証用: 保存済みテレグラムをdecode→format→(任意で)Slack送信
+cmd/eew-replay/     開発/検証用: 保存済み電文（DMDATAの*.json・旧WNI電文の両方）を本番と同じ経路で整形→(任意で)Slack送信
 
 internal/dmdata/    DMDATA.JP API v2クライアント（Socket Start/Close + WebSocket v2受信）
 internal/dmdatasim/ テスト用のフェイクDMDATAサーバ（チケット使い捨て・ping/pong・接続枠を再現）
