@@ -527,19 +527,24 @@ func writeRaw(ctx context.Context, conn *websocket.Conn, mu *sync.Mutex, b []byt
 	return conn.Write(wctx, websocket.MessageText, b)
 }
 
-func (s *Server) get(id int) (*socket, error) {
+// get returns socket id and its connection. The connection is captured
+// under s.mu and must be used instead of re-reading sk.conn afterwards:
+// handleWebSocket sets sk.conn to nil when the client goes away, which can
+// happen at any moment (e.g. right after SendError's error message, when
+// the client closes first).
+func (s *Server) get(id int) (*socket, *websocket.Conn, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	sk, ok := s.sockets[id]
 	if !ok || sk.conn == nil {
-		return nil, fmt.Errorf("dmdatasim: socket %d not connected", id)
+		return nil, nil, fmt.Errorf("dmdatasim: socket %d not connected", id)
 	}
-	return sk, nil
+	return sk, sk.conn, nil
 }
 
 // Ping sends a ping with a fresh pingId to socket id.
 func (s *Server) Ping(id int) error {
-	sk, err := s.get(id)
+	sk, conn, err := s.get(id)
 	if err != nil {
 		return err
 	}
@@ -548,30 +553,30 @@ func (s *Server) Ping(id int) error {
 	sk.lastPID = pid
 	sk.ponged = false
 	s.mu.Unlock()
-	return writeMsg(context.Background(), sk.conn, &sk.writeMu, map[string]any{"type": "ping", "pingId": pid})
+	return writeMsg(context.Background(), conn, &sk.writeMu, map[string]any{"type": "ping", "pingId": pid})
 }
 
 // SendRaw sends an arbitrary text message to socket id.
 func (s *Server) SendRaw(id int, msg []byte) error {
-	sk, err := s.get(id)
+	sk, conn, err := s.get(id)
 	if err != nil {
 		return err
 	}
-	return writeRaw(context.Background(), sk.conn, &sk.writeMu, msg)
+	return writeRaw(context.Background(), conn, &sk.writeMu, msg)
 }
 
 // SendError sends an error message; with close it then closes the socket
 // with that code, like the real service.
 func (s *Server) SendError(id int, code int, text string, close bool) error {
-	sk, err := s.get(id)
+	sk, conn, err := s.get(id)
 	if err != nil {
 		return err
 	}
-	if err := writeMsg(context.Background(), sk.conn, &sk.writeMu, map[string]any{"type": "error", "error": text, "code": code, "close": close}); err != nil {
+	if err := writeMsg(context.Background(), conn, &sk.writeMu, map[string]any{"type": "error", "error": text, "code": code, "close": close}); err != nil {
 		return err
 	}
 	if close {
-		sk.conn.Close(websocket.StatusCode(code), text)
+		conn.Close(websocket.StatusCode(code), text)
 	}
 	return nil
 }
@@ -579,21 +584,21 @@ func (s *Server) SendError(id int, code int, text string, close bool) error {
 // CloseWithCode closes socket id with a close frame carrying code, without
 // sending an `error` message first.
 func (s *Server) CloseWithCode(id int, code int, reason string) error {
-	sk, err := s.get(id)
+	_, conn, err := s.get(id)
 	if err != nil {
 		return err
 	}
-	return sk.conn.Close(websocket.StatusCode(code), reason)
+	return conn.Close(websocket.StatusCode(code), reason)
 }
 
 // Drop abruptly closes socket id's connection without a close frame or
 // error message (like a network failure or a server restart).
 func (s *Server) Drop(id int) error {
-	sk, err := s.get(id)
+	_, conn, err := s.get(id)
 	if err != nil {
 		return err
 	}
-	sk.conn.CloseNow()
+	conn.CloseNow()
 	return nil
 }
 
