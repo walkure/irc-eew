@@ -17,7 +17,7 @@ import (
 
 // File names in a <DataDir>/YYYY/MM/DD directory:
 //
-//	legacy WNI:   <eq_id>.<warn_num>                       (internal/eewlog)
+//	legacy WNI:   <eq_id>.<warn_num>                       (written before DMDATA)
 //	DMDATA:       <EventID>.<Serial>_<received>_<id>.json  (internal/rawarchive)
 //	DMDATA (no EventID in the envelope): <received>_<id>.json
 //

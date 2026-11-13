@@ -17,11 +17,10 @@ cmd/eew-replay/     開発/検証用: 保存済みテレグラムをdecode→for
 
 internal/dmdata/    DMDATA.JP API v2クライアント（Socket Start/Close + WebSocket v2受信）
 internal/dmdatasim/ テスト用のフェイクDMDATAサーバ（チケット使い捨て・ping/pong・接続枠を再現）
-internal/rawarchive/ DMDATAのdataメッセージを受信したまま保存（eewlogとは別レイアウト）
+internal/rawarchive/ DMDATAのdataメッセージを受信したまま保存（旧WNIアーカイブと同じYYYY/MM/DDツリー、ファイル名で区別。レイアウトはeew-viewと共有契約）
 internal/eew/       配信元に依存しないEEW報モデル、VXSE45 XMLパーサ（値の正規化込み）、地震ID単位の上限付き記憶（RecentSet/OriginCache）
 internal/decoder/   旧コード電文(WNI時代)のEEWデコーダ（tables_gen.goはPerl版Decoder.pmから生成した対照表）
 internal/eewmsg/    通知文面の整形（FormatReport: VXSE45→旧WNI電文と同形の文面、Format: 旧コード電文用でeew-replayが使用）
-internal/eewlog/    生テレグラムのアーカイブ保存（ディレクトリ/ファイル名レイアウトはeew-viewと共有契約）
 internal/slack/     Slack incoming-webhook送信（リトライ・レート制限対応）
 internal/notify/    Slack hookの「all/limited」振り分け判定
 internal/irc/       IRC通知（github.com/fluffle/goirc/clientの薄いアダプタ、詳細は後述）

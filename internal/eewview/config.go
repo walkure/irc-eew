@@ -1,5 +1,6 @@
 // Package eewview serves a read-only web viewer for raw EEW telegrams
-// archived by the notifier daemon (see internal/eewlog), porting
+// archived by the notifier daemon (legacy WNI telegrams and DMDATA VXSE45
+// messages, see source.go), porting
 // HTML/index.pl (list view) and HTML/eew-show.pl (detail view) as a plain
 // net/http server instead of CGI/FastCGI behind lighttpd — nothing about
 // this component actually requires that split.
@@ -13,7 +14,7 @@ import "os"
 // invocations keep working unchanged against the Go image.
 type Config struct {
 	// DataDir is the root directory of archived telegrams, in the
-	// <DataDir>/YYYY/MM/DD/<eq_id>.<warn_num> layout internal/eewlog writes
+	// <DataDir>/YYYY/MM/DD/ layout (see source.go for the file names)
 	// (EEW_DATA_DIR).
 	DataDir string
 	// PathBase prefixes every generated link href (EEW_PATH_BASE).

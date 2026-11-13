@@ -2,8 +2,9 @@
 // received, one file per message, before anything tries to interpret them.
 // The bytes are never decoded, re-encoded or normalized.
 //
-// It is deliberately separate from internal/eewlog, whose
-// <eqID>.<warnNum> layout belongs to the legacy WNI code-telegram archive.
+// Its files live in the same tree as the legacy WNI code-telegram archive
+// (<eq_id>.<warn_num>, written before the DMDATA migration) and are told
+// apart by name.
 //
 // Layout (read by internal/eewview, keep in sync):
 //

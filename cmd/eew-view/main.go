@@ -1,5 +1,6 @@
 // Command eew-view serves a read-only web viewer for raw EEW telegrams
-// archived by eew-notifier (see internal/eewlog), replacing HTML/index.pl +
+// archived by eew-notifier (legacy WNI telegrams and DMDATA VXSE45 messages,
+// see internal/eewview), replacing HTML/index.pl +
 // HTML/eew-show.pl (Perl CGI::Fast behind lighttpd) with a single plain
 // net/http server — nothing about this component requires FastCGI.
 package main

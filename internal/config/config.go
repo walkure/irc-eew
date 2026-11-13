@@ -15,7 +15,7 @@ import (
 type Config struct {
 	// LogDir, if set, enables archival of every received telegram (see
 	// internal/rawarchive), in the same YYYY/MM/DD tree as the legacy WNI
-	// archive (internal/eewlog) so internal/eewview reads both from one
+	// archive (<eq_id>.<warn_num> files) so internal/eewview reads both from one
 	// place. Omitted/empty means "don't save EEW data", as before.
 	// Omitted/empty means "don't save EEW data", matching irc-eew.pl.
 	LogDir string       `yaml:"logdir"`
