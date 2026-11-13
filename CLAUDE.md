@@ -63,7 +63,7 @@ go test ./...
 
 - IRCプロトコル自体は自前実装せず`github.com/fluffle/goirc/client`（本番依存）に委譲。PING/PONGはgoirc内蔵、フレーミングもgoirc任せ。自前で持つのは: config変換、再接続バックオフ、JOIN、文字コード変換、送信キュー、チャンネルディスパッチ。
 - 各IRCサーバ接続(`Connection`)は**完全に独立した状態**を持つ: 自分専用の`Dispatcher`（limited-tier判定用`lastEqID`）と自分専用の送信`Queue`。Slackの`notify.Dispatcher`とも他のIRC接続とも状態を共有しない。これはPerl原典（`$last_eq_id`をIRC/Slackで共有していた）からの**意図的な逸脱**。
-- 送信`Queue`はeq_id単位でcoalescing（同じ地震の未送信の古い報は新しい報に置き換わる）し、容量超過時は「取消報 > 最終報 > 途中経過」の優先度で間引く。プレーンな`chan`では実現できないため自前実装（`internal/irc/queue.go`）。
+- 送信`Queue`はeq_id単位でcoalescing（同じ地震の未送信の古い報は新しい報に置き換わる。ただし送り先チャンネルは新旧の和集合、優先度は高い方を残す。2026-11-13に実地震で、初報（#limited宛て）が65ms後の第2報（#all宛てのみ）に置き換わって#limitedに何も届かない不具合が起きたため修正）し、容量超過時は「取消報 > 最終報 > 途中経過」の優先度で間引く。プレーンな`chan`では実現できないため自前実装（`internal/irc/queue.go`）。
 - フラッド対策は意図的に入れていない（`goirc`の`Config.Flood = true`で内蔵レート制限も無効化）。Perl版が「対策なし」だったことを踏襲。
 
 ## Docker/CI

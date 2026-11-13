@@ -174,3 +174,28 @@ func TestQueue_EnqueueAfterCloseIsNoop(t *testing.T) {
 		t.Errorf("Len: got %d, want 0 (Enqueue after Close should be a no-op)", got)
 	}
 }
+
+// Seen live on 2026-11-13: report 1 (bound for #all and #limited, as an
+// earthquake's first report) was superseded 65ms later by report 2 (bound
+// for #all only) before it went out, and #limited never heard of the
+// earthquake. Coalescing must keep the union of channels and the higher
+// priority while taking the newer text.
+func TestQueue_CoalesceKeepsPendingChannelsAndPriority(t *testing.T) {
+	q := NewQueue(8)
+	q.Enqueue(Notice{EqID: "a", Channels: []string{"#all", "#limited"}, Text: "report 1", Priority: PriorityNormal})
+	q.Enqueue(Notice{EqID: "a", Channels: []string{"#all"}, Text: "report 2", Priority: PriorityNormal})
+	n, ok := q.Dequeue()
+	if !ok || n.Text != "report 2" {
+		t.Fatalf("got %+v, want the newer text", n)
+	}
+	if len(n.Channels) != 2 || n.Channels[0] != "#all" || n.Channels[1] != "#limited" {
+		t.Errorf("channels = %v, want [#all #limited]", n.Channels)
+	}
+
+	q.Enqueue(Notice{EqID: "b", Channels: []string{"#all", "#limited"}, Text: "final", Priority: PriorityFinal})
+	q.Enqueue(Notice{EqID: "b", Channels: []string{"#all", "#other"}, Text: "later", Priority: PriorityNormal})
+	n, _ = q.Dequeue()
+	if n.Priority != PriorityFinal || len(n.Channels) != 3 {
+		t.Errorf("got %+v, want PriorityFinal kept and 3 channels", n)
+	}
+}

@@ -68,8 +68,18 @@ func (q *Queue) Enqueue(n Notice) {
 		return
 	}
 
-	if _, exists := q.entries[n.EqID]; exists {
-		// Coalesce: replace content, keep this eq_id's existing delivery slot.
+	if old, exists := q.entries[n.EqID]; exists {
+		// Coalesce: the newer report's text supersedes the unsent one, but
+		// the channels the unsent one was due for are kept (union) and so
+		// is the higher Priority. Otherwise a first report bound for the
+		// limited channels, superseded before it went out by a routine
+		// report bound for the "all" channels only, would never reach the
+		// limited channels at all (seen live: two reports 65ms apart).
+		// The eq_id keeps its existing delivery slot.
+		n.Channels = unionChannels(old.Channels, n.Channels)
+		if old.Priority > n.Priority {
+			n.Priority = old.Priority
+		}
 		q.entries[n.EqID] = n
 		q.cond.Signal()
 		return
@@ -82,6 +92,24 @@ func (q *Queue) Enqueue(n Notice) {
 	q.order = append(q.order, n.EqID)
 	q.entries[n.EqID] = n
 	q.cond.Signal()
+}
+
+// unionChannels returns a's channels followed by b's that aren't in a.
+func unionChannels(a, b []string) []string {
+	out := append([]string(nil), a...)
+	for _, ch := range b {
+		seen := false
+		for _, x := range out {
+			if x == ch {
+				seen = true
+				break
+			}
+		}
+		if !seen {
+			out = append(out, ch)
+		}
+	}
+	return out
 }
 
 // evictOne removes the oldest entry among the lowest Priority present.
