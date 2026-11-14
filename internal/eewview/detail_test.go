@@ -140,13 +140,15 @@ func TestDetailHandler_UnknownFile(t *testing.T) {
 	}
 }
 
-func TestTelegramPath_MatchesArchiveLayout(t *testing.T) {
-	got, err := telegramPath("/data", "20110312042346.81")
-	if err != nil {
-		t.Fatalf("telegramPath: %v", err)
-	}
-	want := "\\data\\2011\\03\\12\\20110312042346.81"
-	if !strings.HasSuffix(got, "2011\\03\\12\\20110312042346.81") && !strings.HasSuffix(got, "2011/03/12/20110312042346.81") {
-		t.Errorf("telegramPath: got %q, want suffix matching %q", got, want)
+func TestNameDate(t *testing.T) {
+	for name, want := range map[string][3]int{
+		"20110312042346.81": {2011, 3, 12},
+		"20261112222726.4_20261112222804.617_8fe58332b4ca": {2026, 11, 12},
+		"20261112222804.617_8fe58332b4ca":                  {2026, 11, 12},
+	} {
+		y, m, d := nameDate(name)
+		if [3]int{y, m, d} != want {
+			t.Errorf("nameDate(%q) = %d/%d/%d, want %v", name, y, m, d, want)
+		}
 	}
 }

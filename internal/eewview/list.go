@@ -5,7 +5,6 @@ import (
 	"html/template"
 	"net/http"
 	"os"
-	"path/filepath"
 	"sort"
 	"strconv"
 )
@@ -65,7 +64,7 @@ type listPageData struct {
 	Rows     []template.HTML
 }
 
-func listHandler(cfg Config, tmpl *template.Template) http.HandlerFunc {
+func listHandler(cfg Config, st *store, tmpl *template.Template) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query()
 		year := saturate(q.Get("year"), 2000, 3000)
@@ -74,13 +73,8 @@ func listHandler(cfg Config, tmpl *template.Template) http.HandlerFunc {
 
 		var rows []template.HTML
 
-		yearDir := filepath.Join(cfg.DataDir, fmt.Sprintf("%d", year))
-		if !dirExists(yearDir) {
-			for _, name := range numericSubdirs(cfg.DataDir) {
-				n, err := strconv.Atoi(name)
-				if err != nil {
-					continue
-				}
+		if !st.hasYear(year) {
+			for _, n := range st.years() {
 				href := fmt.Sprintf("%s?year=%d", cfg.PathBase, n)
 				rows = append(rows, link(href, fmt.Sprintf("%d年", n)))
 			}
@@ -88,14 +82,9 @@ func listHandler(cfg Config, tmpl *template.Template) http.HandlerFunc {
 			return
 		}
 
-		monthDir := filepath.Join(cfg.DataDir, fmt.Sprintf("%04d", year), fmt.Sprintf("%02d", month))
-		if !dirExists(monthDir) {
+		if !st.hasMonth(year, month) {
 			prefix := link(fmt.Sprintf("%s?year=%d", cfg.PathBase, year), fmt.Sprintf("%d年", year))
-			for _, name := range numericSubdirs(yearDir) {
-				n, err := strconv.Atoi(name)
-				if err != nil {
-					continue
-				}
+			for _, n := range st.months(year) {
 				href := fmt.Sprintf("%s?year=%d&month=%d", cfg.PathBase, year, n)
 				rows = append(rows, prefix+link(href, fmt.Sprintf("%d月", n)))
 			}
@@ -103,15 +92,10 @@ func listHandler(cfg Config, tmpl *template.Template) http.HandlerFunc {
 			return
 		}
 
-		dayDir := filepath.Join(cfg.DataDir, fmt.Sprintf("%04d", year), fmt.Sprintf("%02d", month), fmt.Sprintf("%02d", day))
-		if !dirExists(dayDir) {
+		if !st.hasDay(year, month, day) {
 			prefix := link(fmt.Sprintf("%s?year=%d", cfg.PathBase, year), fmt.Sprintf("%d年", year)) +
 				link(fmt.Sprintf("%s?year=%d&month=%d", cfg.PathBase, year, month), fmt.Sprintf("%d月", month))
-			for _, name := range numericSubdirs(monthDir) {
-				n, err := strconv.Atoi(name)
-				if err != nil {
-					continue
-				}
+			for _, n := range st.days(year, month) {
 				href := fmt.Sprintf("%s?year=%d&month=%d&day=%d", cfg.PathBase, year, month, n)
 				rows = append(rows, prefix+link(href, fmt.Sprintf("%d日", n)))
 			}
@@ -122,12 +106,7 @@ func listHandler(cfg Config, tmpl *template.Template) http.HandlerFunc {
 		prefix := link(fmt.Sprintf("%s?year=%d", cfg.PathBase, year), fmt.Sprintf("%d年", year)) +
 			link(fmt.Sprintf("%s?year=%d&month=%d", cfg.PathBase, year, month), fmt.Sprintf("%d月", month)) +
 			template.HTML(escaped(fmt.Sprintf("%d日", day)))
-		recs, err := loadDay(dayDir)
-		if err != nil {
-			http.Error(w, "internal error", http.StatusInternalServerError)
-			return
-		}
-		for _, rec := range recs {
+		for _, rec := range loadDay(st.dayFiles(year, month, day)) {
 			href := fmt.Sprintf("%s%s?name=%s", cfg.PathBase, cfg.ViewerPath, rec.Name)
 			rows = append(rows, prefix+" "+link(href, "■")+" "+template.HTML(escaped(ListSummaryText(rec))))
 		}

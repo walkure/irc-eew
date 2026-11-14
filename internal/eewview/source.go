@@ -3,10 +3,9 @@ package eewview
 import (
 	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -38,60 +37,33 @@ func isDMDATAName(name string) bool {
 // validName reports whether name is a ?name= this viewer generates.
 func validName(name string) bool { return isLegacyName(name) || isDMDATAName(name) }
 
-// recordPath maps a validated name to its file: both layouts keep the
-// date in the first 8 digits of the name.
-func recordPath(dataDir, name string) (string, error) {
-	if !validName(name) {
-		return "", fmt.Errorf("eewview: invalid name %q", name)
-	}
-	file := name
-	if isDMDATAName(name) {
-		file += ".json"
-	}
-	full := filepath.Join(dataDir, name[0:4], name[4:6], name[6:8], file)
-
-	// Defense in depth: the name patterns already rule out traversal.
-	base, err := filepath.Abs(dataDir)
-	if err != nil {
-		return "", err
-	}
-	resolved, err := filepath.Abs(full)
-	if err != nil {
-		return "", err
-	}
-	if !strings.HasPrefix(resolved, base) {
-		return "", fmt.Errorf("eewview: resolved path escapes data dir")
-	}
-	return full, nil
+// nameDate is the archive date of a validated name: both layouts keep it
+// in the first 8 digits.
+func nameDate(name string) (year, month, day int) {
+	year, _ = strconv.Atoi(name[0:4])
+	month, _ = strconv.Atoi(name[4:6])
+	day, _ = strconv.Atoi(name[6:8])
+	return year, month, day
 }
 
-// telegramPath is kept for the legacy name form (see recordPath).
-func telegramPath(dataDir, name string) (string, error) { return recordPath(dataDir, name) }
-
-// loadDay reads every archived report in one day directory, both formats,
-// sorted by EventID, then Serial, then receive time. A DMDATA
-// cancellation carries no origin time; it takes the one from the latest
-// earlier report of the same EventID in the day, like the notifier does.
-func loadDay(dayDir string) ([]*record, error) {
-	entries, err := os.ReadDir(dayDir)
-	if err != nil {
-		return nil, err
-	}
+// loadDay turns one day's archived telegrams (store.dayFiles), both
+// formats, into records sorted by EventID, then Serial, then receive time.
+// A DMDATA cancellation carries no origin time; it takes the one from the
+// latest earlier report of the same EventID in the day, like the notifier
+// does.
+func loadDay(files []dayFile) []*record {
 	var recs []*record
-	for _, e := range entries {
-		if e.IsDir() {
-			continue
-		}
-		file := e.Name()
+	for _, f := range files {
 		switch {
-		case isLegacyName(file):
-			body, err := os.ReadFile(filepath.Join(dayDir, file))
+		case isLegacyName(f.name):
+			body, err := f.read()
 			if err != nil {
 				continue
 			}
-			recs = append(recs, legacyRecord(file, decoder.Decode(body)))
-		case strings.HasSuffix(file, ".json") && isDMDATAName(strings.TrimSuffix(file, ".json")):
-			recs = append(recs, readDMDATA(filepath.Join(dayDir, file)))
+			recs = append(recs, legacyRecord(f.name, decoder.Decode(body)))
+		case strings.HasSuffix(f.name, ".json") && isDMDATAName(strings.TrimSuffix(f.name, ".json")):
+			raw, err := f.read()
+			recs = append(recs, readDMDATA(strings.TrimSuffix(f.name, ".json"), raw, err))
 		}
 	}
 	sort.SliceStable(recs, func(i, j int) bool {
@@ -113,14 +85,14 @@ func loadDay(dayDir string) ([]*record, error) {
 			r.OriginFull, r.OriginClock = o[0], o[1]
 		}
 	}
-	return recs, nil
+	return recs
 }
 
-// readDMDATA turns one archived DMDATA data message into a record. A file
-// that isn't a readable VXSE45 telegram still yields a record (marked
-// Unparsable) so it stays visible in the listing.
-func readDMDATA(path string) *record {
-	name := strings.TrimSuffix(filepath.Base(path), ".json")
+// readDMDATA turns one archived DMDATA data message (name is the file
+// name without .json, raw/readErr what reading it gave) into a record. A
+// file that isn't a readable VXSE45 telegram still yields a record
+// (marked Unparsable) so it stays visible in the listing.
+func readDMDATA(name string, raw []byte, readErr error) *record {
 	received := receivedFromName(name)
 	fallback := &record{Name: name, Unparsable: true, received: received}
 	if m := dmdataNameRE.FindStringSubmatch(name); m != nil {
@@ -130,8 +102,7 @@ func readDMDATA(path string) *record {
 		fallback.EventID = received.Format("20060102150405")
 	}
 
-	raw, err := os.ReadFile(path)
-	if err != nil {
+	if readErr != nil {
 		return fallback
 	}
 	var msg dmdata.DataMessage

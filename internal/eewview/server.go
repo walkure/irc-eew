@@ -15,9 +15,10 @@ func NewServer(cfg Config) (http.Handler, error) {
 		return nil, fmt.Errorf("eewview: parsing templates: %w", err)
 	}
 
+	st := newStore(cfg.DataDir)
 	mux := http.NewServeMux()
 	viewerRoute := "/" + strings.TrimPrefix(cfg.ViewerPath, "/")
-	mux.HandleFunc(viewerRoute, detailHandler(cfg, tmpl))
-	mux.HandleFunc("/", listHandler(cfg, tmpl))
+	mux.HandleFunc(viewerRoute, detailHandler(cfg, st, tmpl))
+	mux.HandleFunc("/", listHandler(cfg, st, tmpl))
 	return mux, nil
 }

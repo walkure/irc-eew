@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
-	"os"
-	"path/filepath"
 )
 
 func text(s string) template.HTML { return template.HTML(escaped(s)) }
@@ -34,28 +32,19 @@ type detailPageData struct {
 	Lat, Lng float64
 }
 
-func detailHandler(cfg Config, tmpl *template.Template) http.HandlerFunc {
+func detailHandler(cfg Config, st *store, tmpl *template.Template) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		name := r.URL.Query().Get("name")
-		path, err := recordPath(cfg.DataDir, name)
-		if err != nil {
+		if !validName(name) {
 			http.Error(w, "invalid name", http.StatusBadRequest)
-			return
-		}
-		if _, err := os.Stat(path); err != nil {
-			http.NotFound(w, r)
 			return
 		}
 
 		// Load the whole day so a cancellation can show the origin time of
 		// its earthquake's earlier report, exactly as the listing does.
-		recs, err := loadDay(filepath.Dir(path))
-		if err != nil {
-			http.NotFound(w, r)
-			return
-		}
+		year, month, day := nameDate(name)
 		var rec *record
-		for _, c := range recs {
+		for _, c := range loadDay(st.dayFiles(year, month, day)) {
 			if c.Name == name {
 				rec = c
 				break

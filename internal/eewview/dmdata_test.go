@@ -217,7 +217,7 @@ func TestDMDATA_MixedWithLegacySameDay(t *testing.T) {
 	}
 }
 
-func TestRecordPath(t *testing.T) {
+func TestValidName(t *testing.T) {
 	ok := []string{
 		"20110312042346.81",
 		"20261112222726.4_20261112222804.617_8fe58332b4ca",
@@ -225,13 +225,13 @@ func TestRecordPath(t *testing.T) {
 		"20261112222804.617_x0123",
 	}
 	for _, n := range ok {
-		if _, err := recordPath("/data", n); err != nil {
-			t.Errorf("%q rejected: %v", n, err)
+		if !validName(n) {
+			t.Errorf("%q rejected", n)
 		}
 	}
 	bad := []string{"", "../../etc", "20261112222726.4_20261112222804.617_../x", "20261112222726.4_2026.1_ab", "x.json"}
 	for _, n := range bad {
-		if _, err := recordPath("/data", n); err == nil {
+		if validName(n) {
 			t.Errorf("%q accepted", n)
 		}
 	}
