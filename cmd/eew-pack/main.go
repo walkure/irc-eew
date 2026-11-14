@@ -1,9 +1,10 @@
 // Command eew-pack packs one year of the telegram archive (logdir) into
-// <logdir>/<YYYY>.zip (see internal/eewzip). It only adds a zip: the
-// loose files are left in place, to be removed by hand once the zip has
-// been checked.
+// <logdir>/<YYYY>.zip (see internal/eewzip). By default it only adds a
+// zip and leaves the loose files in place; with -move-packed the loose
+// files now in the zip are moved out of the viewer's sight (never deleted).
 //
 //	eew-pack -dir /eewlog -year 2025
+//	eew-pack -dir /eewlog -year 2025 -move-packed /eewlog/packed
 //	eew-pack -dir /eewlog -year 2026 -legacy-only   # a year still receiving DMDATA
 //	eew-pack -dir /eewlog -year 2025 -out /tmp/2025.zip
 package main
@@ -21,19 +22,26 @@ func main() {
 	year := flag.Int("year", 0, "year to pack")
 	out := flag.String("out", "", "zip to write (default <dir>/<year>.zip); an existing zip there is merged")
 	legacyOnly := flag.Bool("legacy-only", false, "pack only legacy WNI telegrams (leave *.json loose)")
+	moveTo := flag.String("move-packed", "", "after packing, move the packed loose files here (YYYY/MM/DD/<file>); must not be a directory the viewer reads")
 	flag.Parse()
 	if *dir == "" || *year == 0 || flag.NArg() != 0 {
 		flag.Usage()
 		os.Exit(2)
 	}
 
-	res, err := eewzip.Pack(eewzip.PackOptions{Dir: *dir, Year: *year, Out: *out, LegacyOnly: *legacyOnly})
+	res, err := eewzip.Pack(eewzip.PackOptions{Dir: *dir, Year: *year, Out: *out, LegacyOnly: *legacyOnly, MoveTo: *moveTo})
 	if err != nil {
+		if res != nil {
+			fmt.Fprintf(os.Stderr, "eew-pack: %s was written; %d loose files moved before:\n", res.Out, res.Moved)
+		}
 		fmt.Fprintln(os.Stderr, "eew-pack:", err)
 		os.Exit(1)
 	}
 	fmt.Printf("wrote %s: %d entries (kept %d, added %d, already packed %d, json left loose %d)\n",
 		res.Out, res.Entries, res.Kept, res.Added, res.AlreadyPacked, res.SkippedJSON)
+	if *moveTo != "" {
+		fmt.Printf("moved %d loose files to %s\n", res.Moved, *moveTo)
+	}
 	if len(res.Irregular) > 0 {
 		fmt.Printf("not packed (outside the YYYY/MM/DD/<file> layout): %d\n", len(res.Irregular))
 		for _, p := range res.Irregular {

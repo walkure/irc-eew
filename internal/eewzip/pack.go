@@ -27,6 +27,12 @@ type PackOptions struct {
 	// LegacyOnly packs only legacy WNI telegrams (every file not ending in
 	// .json), for a year in which DMDATA telegrams may still arrive.
 	LegacyOnly bool
+	// MoveTo, if set, is where the loose files now in the zip are moved
+	// after the zip is in place: <MoveTo>/YYYY/MM/DD/<file>. Directories
+	// of the year left empty are removed. It must not be a directory the
+	// viewer reads (Dir itself or a year directory under it); a
+	// non-numeric directory inside Dir, e.g. <Dir>/packed, is fine.
+	MoveTo string
 }
 
 // PackResult reports what Pack did.
@@ -47,6 +53,8 @@ type PackResult struct {
 	// YYYY/MM/DD/<file> layout (or are dot files, e.g. a notifier temp
 	// file); they are not packed. Paths are relative to Dir.
 	Irregular []string
+	// Moved are loose files moved to MoveTo.
+	Moved int
 }
 
 // source is where an entry's bytes come from.
@@ -55,6 +63,10 @@ type source struct {
 	path string    // or from a loose file
 	fi   fs.FileInfo
 }
+
+// packedLoose are loose files whose bytes are in the written zip, by
+// entry name.
+type packedLoose map[string]string
 
 func (s source) read() ([]byte, error) {
 	if s.zf != nil {
@@ -77,8 +89,14 @@ func Pack(opt PackOptions) (*PackResult, error) {
 	if out == "" {
 		out = filepath.Join(opt.Dir, ZipName(opt.Year))
 	}
+	if opt.MoveTo != "" {
+		if err := checkMoveTo(opt.Dir, opt.MoveTo); err != nil {
+			return nil, err
+		}
+	}
 	res := &PackResult{Out: out}
 	sources := map[string]source{}
+	loose := packedLoose{}
 
 	// Existing zip entries.
 	var old *zip.ReadCloser
@@ -103,7 +121,7 @@ func Pack(opt PackOptions) (*PackResult, error) {
 		return nil, err
 	}
 
-	if err := collectLoose(opt, out, sources, res); err != nil {
+	if err := collectLoose(opt, out, sources, loose, res); err != nil {
 		return nil, err
 	}
 
@@ -153,7 +171,76 @@ func Pack(opt PackOptions) (*PackResult, error) {
 	}
 	keep = true
 	res.Entries = len(names)
+	if opt.MoveTo != "" {
+		if err := moveLoose(opt, loose, res); err != nil {
+			return res, err
+		}
+	}
 	return res, nil
+}
+
+// checkMoveTo refuses a MoveTo the viewer would read files from.
+func checkMoveTo(dir, moveTo string) error {
+	absDir, err := filepath.Abs(dir)
+	if err != nil {
+		return err
+	}
+	absTo, err := filepath.Abs(moveTo)
+	if err != nil {
+		return err
+	}
+	rel, err := filepath.Rel(absDir, absTo)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return nil // outside Dir
+	}
+	first := strings.SplitN(filepath.ToSlash(rel), "/", 2)[0]
+	if rel == "." || (first != "" && first[0] >= '0' && first[0] <= '9') {
+		return fmt.Errorf("eewzip: -move-packed %s would still be read by the viewer", moveTo)
+	}
+	return nil
+}
+
+// moveLoose moves the packed loose files to MoveTo and removes the year's
+// directories left empty. An existing file at the destination is an
+// error (nothing is overwritten).
+func moveLoose(opt PackOptions, loose packedLoose, res *PackResult) error {
+	rels := make([]string, 0, len(loose))
+	for rel := range loose {
+		rels = append(rels, rel)
+	}
+	sort.Strings(rels)
+	for _, rel := range rels {
+		dst := filepath.Join(opt.MoveTo, filepath.FromSlash(rel))
+		if _, err := os.Lstat(dst); err == nil {
+			return fmt.Errorf("eewzip: moving %s: %s already exists", loose[rel], dst)
+		} else if !errors.Is(err, fs.ErrNotExist) {
+			return err
+		}
+		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+			return err
+		}
+		if err := os.Rename(loose[rel], dst); err != nil {
+			return fmt.Errorf("eewzip: moving %s: %w", loose[rel], err)
+		}
+		res.Moved++
+	}
+	removeEmptyDirs(filepath.Join(opt.Dir, fmt.Sprintf("%04d", opt.Year)))
+	return nil
+}
+
+// removeEmptyDirs removes root and the directories under it that are (or
+// become) empty, deepest first; anything still holding a file stays.
+func removeEmptyDirs(root string) {
+	var dirs []string
+	filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err == nil && d.IsDir() {
+			dirs = append(dirs, path)
+		}
+		return nil
+	})
+	for i := len(dirs) - 1; i >= 0; i-- {
+		os.Remove(dirs[i]) // fails, harmlessly, if not empty
+	}
 }
 
 func writeZip(w io.Writer, names []string, sources map[string]source) error {
@@ -226,7 +313,7 @@ func verify(path string, names []string, sources map[string]source) error {
 
 // collectLoose adds the year directory's files to sources (see
 // PackOptions/PackResult for what is taken and what is reported).
-func collectLoose(opt PackOptions, out string, sources map[string]source, res *PackResult) error {
+func collectLoose(opt PackOptions, out string, sources map[string]source, packed packedLoose, res *PackResult) error {
 	yearDir := filepath.Join(opt.Dir, fmt.Sprintf("%04d", opt.Year))
 	err := filepath.WalkDir(yearDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -254,6 +341,7 @@ func collectLoose(opt PackOptions, out string, sources map[string]source, res *P
 			return err
 		}
 		loose := source{path: path, fi: fi}
+		packed[rel] = path
 		prev, ok := sources[rel]
 		if !ok {
 			sources[rel] = loose
@@ -270,7 +358,6 @@ func collectLoose(opt PackOptions, out string, sources map[string]source, res *P
 		return err
 	}
 	return nil
-
 }
 
 // sameBytes checks that a loose file equals the copy already packed.

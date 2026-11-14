@@ -148,3 +148,58 @@ func TestNames(t *testing.T) {
 		t.Error("ParseEntryName accepted a nested path")
 	}
 }
+
+func TestPack_MoveToMovesPackedLooseFiles(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "2025/03/01/20250301000000.1", []byte("a"))
+	writeFile(t, dir, "2025/03/02/20250302000000.1_x.json", []byte("b"))
+	writeFile(t, dir, "2025/12/temp/07/20251207054002.1", []byte("stray"))
+	moveTo := filepath.Join(dir, "packed")
+
+	res, err := Pack(PackOptions{Dir: dir, Year: 2025, MoveTo: moveTo})
+	if err != nil {
+		t.Fatalf("Pack: %v", err)
+	}
+	if res.Moved != 2 || res.Entries != 2 {
+		t.Errorf("result = %+v", res)
+	}
+	for _, rel := range []string{"2025/03/01/20250301000000.1", "2025/03/02/20250302000000.1_x.json"} {
+		if _, err := os.Stat(filepath.Join(moveTo, filepath.FromSlash(rel))); err != nil {
+			t.Errorf("%s not moved: %v", rel, err)
+		}
+	}
+	// Emptied directories are gone; the irregular file and its directories stay.
+	if _, err := os.Stat(filepath.Join(dir, "2025", "03")); !os.IsNotExist(err) {
+		t.Errorf("2025/03 left behind: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "2025/12/temp/07/20251207054002.1")); err != nil {
+		t.Errorf("irregular file touched: %v", err)
+	}
+
+	// Re-running (nothing loose left) keeps the zip and moves nothing.
+	res, err = Pack(PackOptions{Dir: dir, Year: 2025, MoveTo: moveTo})
+	if err != nil || res.Moved != 0 || res.Kept != 2 || res.Entries != 2 {
+		t.Errorf("re-run = %+v, %v", res, err)
+	}
+
+	// A file reappearing loose is not moved over its earlier copy.
+	writeFile(t, dir, "2025/03/01/20250301000000.1", []byte("a"))
+	if _, err := Pack(PackOptions{Dir: dir, Year: 2025, MoveTo: moveTo}); err == nil || !strings.Contains(err.Error(), "already exists") {
+		t.Errorf("overwrite not refused: %v", err)
+	}
+}
+
+func TestPack_MoveToRefusesViewerDirs(t *testing.T) {
+	dir := t.TempDir()
+	for _, to := range []string{dir, filepath.Join(dir, "2024"), filepath.Join(dir, "2025", "x")} {
+		if _, err := Pack(PackOptions{Dir: dir, Year: 2025, MoveTo: to}); err == nil {
+			t.Errorf("MoveTo %s accepted", to)
+		}
+	}
+	if err := checkMoveTo(dir, filepath.Join(dir, "packed")); err != nil {
+		t.Errorf("packed refused: %v", err)
+	}
+	if err := checkMoveTo(dir, filepath.Join(filepath.Dir(dir), "loose")); err != nil {
+		t.Errorf("sibling refused: %v", err)
+	}
+}
