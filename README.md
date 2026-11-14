@@ -53,10 +53,11 @@ WNI時代のものを同じ一覧に並べて表示します（読み取り専�
 
 電文は1件ずつのファイルなので、ディスクのブロック単位で場所を取ります。年が明けたら前年の分を
 `eew-pack`で`<logdir>/<年>.zip`にまとめられます。ビューアはフォルダとzipの両方を読むので、
-まとめたあとも表示は変わりません。`eew-pack`は元のファイルを消さないので、zipを確認してから
-手で消してください。`eew-pack`はeew-viewのイメージに入っています。
+まとめたあとも表示は変わりません。`eew-pack`は元のファイルを消しません。`-move-packed`を付けると、
+zipに入れて照合し終えたファイルを指定した場所（例：`/eewlog/packed`、ビューアからは見えない）へ移します。
+`eew-pack`はeew-viewのイメージに入っています。
 
-`docker run -it --rm --mount type=bind,source=/a/path/to/eewlog,target=/eewlog --entrypoint /usr/src/eew-view/eew-pack ghcr.io/walkure/eew-view:latest -dir /eewlog -year 2025`
+`docker run -it --rm --mount type=bind,source=/a/path/to/eewlog,target=/eewlog --entrypoint /usr/src/eew-view/eew-pack ghcr.io/walkure/eew-view:latest -dir /eewlog -year 2025 -move-packed /eewlog/packed`
 
 まだ電文が増える年の旧WNI電文だけをまとめるときは`-legacy-only`を付けます。
 
