@@ -72,10 +72,13 @@ go test ./...
 
 ## Docker/CI
 
-- `Dockerfile`（notifier）・`Dockerfile.eew-view`（viewer）はどちらも`FROM scratch`のマルチステージビルド。`CGO_ENABLED=0`、タイムゾーンは`time/tzdata`のblank import + `ENV TZ=Asia/Tokyo`（scratchには`/usr/share/zoneinfo`が無い）。
+- `Dockerfile`（notifier）・`Dockerfile.eew-view`（viewer）はどちらも`FROM scratch`のマルチステージビルド。`CGO_ENABLED=0`、タイムゾーンは`time/tzdata`のblank import + `ENV TZ=Asia/Tokyo`（scratchには`/usr/share/zoneinfo`が無い）。**イメージに入れる`cmd/`はすべて`time/tzdata`を入れること**（`eew-pack`だけ入れ忘れて、zipエントリの時刻がUTCになった実例あり、v2.2.1で修正）。`Dockerfile.eew-view`は`eew-pack`も同梱する。
 - `.github/workflows/go-test.yaml` — 通常のbuild/vet/test、および`irctest`ジョブ（`-tags irctest`）。
 - `.github/workflows/build.yaml` — `v*`タグpush時にghcr.ioへ両イメージを公開。`.github/actions/build`が共通の合成アクション。
-- イメージは`ghcr.io/walkure/irc-eew`と`ghcr.io/walkure/eew-view`の2つ。バージョンは`git tag`（例: `v1.3.0`）で管理。
+- イメージは`ghcr.io/walkure/irc-eew`と`ghcr.io/walkure/eew-view`の2つ。バージョンは`git tag`（annotated、例: `v1.3.0`）で管理。
+- Go: `go.mod`は`go 1.27.0`＋`toolchain go1.27.4`、ビルダーは`golang:1.27-alpine`（2026-11-14、ユーザー判断で最新に追従。CIの`setup-go`は`go-version-file: go.mod`でtoolchain行を読む）。手元のGoはMSIで`C:\Go`に入っておりユーザーが更新する。
+- 依存: `go.opentelemetry.io/otel/*`は`internal/irc`の結合テスト→testcontainers→moby client経由のテスト専用依存で、出荷バイナリには入らない（`go version -m`で確認済み）。Dependabotの警告はこれで来ることがある。
+- 本番のバージョン（2026-11-14時点）: notifier・eew-viewとも`2.2.1`（Go 1.27.4でビルド）。`v2.2.1`タグは一度eew-packのtzdata修正の時点に打ったあと、未使用のうちにmaster（Go 1.27移行後）へ打ち直している。年次のeew-pack Jobは別名`eew-pack`で`2.2.0`に固定（後述「保存サイズ」）。
 
 ## 移植・変更に関する規律
 
@@ -170,6 +173,7 @@ WNIのFastCaster配信が終了したため、WNI関連コード（`internal/wni
   - 本番アーカイブの非正規ファイル: `2022/12/temp/{06,07,09,10}/`の49件（正規の場所にも同名があり、うち4件は中身が異なる。2022年12月の作業跡と思われる）はzipに入れず、下記のバックアップにのみ残っている。直下の空ファイル`test`はユーザーが削除済み。報番号のない`2011/03/13/20110313082415`・`2011/03/14/20110314134555`はzipには入るがeew-viewの一覧には出ない（従来どおり）。
   - 本番適用（2026-11-14、v2.1.0）: aganoで2010〜2025年と2026年の旧電文（`-legacy-only`）をzip化し、元ファイル65,949件はホストの`/var/lib/eewlog/loose/`（PVの外、Podからは見えない）へ手作業で移動したのち、`xz -9e`のtarで**agano の`~walkure/eewlog-loose-20261114.tar.xz`**（1.36MB、65,949件、sha256 `c45bd8b6a94696457f4b73785a3652b40d085ed200e3e997181a1ff37812b975`、`tar -d`で全件一致を確認）にバックアップし、`loose/`は削除済み（ユーザー実施）。本番eew-viewの全70,245ページが手元で確認済みのzipのみの表示とハッシュ一致。shadowのみが受信した9件（2026-11-12/13）も本番へ転送済み。段階1の検証中に受信した実電文10件（2026-11-12の`20261112113529`第1〜4報・`20261112130734`第1〜6報、当時は`<受信時刻>_<id>.json`名）も、中身はそのまま名前だけ現行の`<EventID>.<Serial>_<受信時刻>_<id>.json`に揃えて本番へ転送済み。手元（shadow・Dockerのvolume・`eewlog/`コーパス・作業用ディレクトリ）に本番にない受信データが残っていないことを照合済み。
   - **年次作業はJobで行う（ユーザー決定: CronJobではなく普通のJob）**: agano-k8s-applicationsの`namespaces/slackbot/shared/job-eew-pack.yaml`に`eew-pack-<年>`という名前のJob（eew-viewイメージの`eew-pack -dir /eewlog -year <年> -move-packed /eewlog/packed`、uid 1000、PVをrwでマウント）を置いてある。**毎年1月に、Jobの名前と`-year`を前年に書き換えてpushする**と、ArgoCDが前のJobを消して新しいJobを1回実行する（完了済みJobのspecは変更できないので名前を変えるのが必須）。2026年分は2027年1月に実行する（2026年の旧電文は既にzip内、DMDATA分が追加される）。何度実行しても結果は同じ。Jobのイメージは同じディレクトリのkustomizationの`eew-pack`という別名で固定している（eew-viewのタグを上げると完了済みJobのspecが変わってArgoCDの同期が失敗するため）。名前を変えるときに一緒に上げる。2026年分は**v2.2.1以上**で実行すること（v2.2.0の`eew-pack`はtzdata未同梱でscratchイメージ内ではzipエントリのローカル時刻がUTCになる。中身のバイト列には影響なし）。2026年分の動作は、本番と同じ状態（旧電文のみの2026.zip＋DMDATA13件）を手元とLinuxイメージで再現して確認済み（zipは両者でsha256一致、eew-viewの2026年の全ページが実行前後で同一）。
+  - aganoでの作業: sshユーザー（walkure）のsudoはパスワードが要るので、root権限が要る操作（PV上のファイルの権限変更・移動・設置等）は、手元で用意・検証したうえでユーザーにコマンドを渡して実行してもらう。PVの実体はホストの`/var/lib/eewlog/data`（local PV、Pod内は`/eewlog`）、年ディレクトリ・ファイルはuid 1000（ubuntu）所有。`kubectl exec`はscratchイメージなので使えない。
   - 保存ファイルの権限: `rawarchive.Save`が`os.CreateTemp`の0600のまま置いていたため、notifierと別ユーザー（aganoのssh利用者等）から読めなかった。0644に修正（ユーザー決定。umask任せではなく固定）。v2.0.0で保存された分は本番で手作業で`chmod 644`済み。
 
 ## Windows開発環境での注意点
@@ -181,4 +185,4 @@ WNIのFastCaster配信が終了したため、WNI関連コード（`internal/wni
 ## 用語・経緯
 
 - リポジトリ名・イメージ名の「irc-eew」は歴史的経緯。一時Go移植でIRC対応を落としていた期間があったが、`internal/irc`として復活済み（本ドキュメント作成時点の最新）。
-- 実地震での動作確認（shadow）は`dev/shadow/`のdocker composeで行う（2026-11-14の本番切替後、ユーザー指示で`docker compose down`済み。`dev/shadow/data/`と設定は残してある。再開するときは本番とWebSocket接続が競合しないよう注意）（ユーザー要望: IRCも含めて試す）。作業ツリーからビルドしたnotifier（`irc-eew-shadow-notifier-1`）が本物のDMDATAに接続し、同じcompose内のErgo IRCサーバ（`irc-eew-shadow-ergo-1`、`#eew`/`#eew-limited`）とconfig.yamlに書いたSlack（テスト用チャンネルのみ）へ通知する。Ergoは`127.0.0.1:6667`に公開しているので、この開発機のIRCクライアントから接続して通知を目視できる（他ホストからは不可）。`dev/shadow/config.yaml`（秘密情報）と`dev/shadow/data/`（受信生データ）はgitignore。DMDATAの`app-name`は`irc-eew-shadow`で、他インスタンスと分けている。Ergoは履歴を持たないので、常時joinしている監視クライアント`irc-eew-shadow-observer-1`（`dev/shadow/irc_observer.py`、goirc/internal/ircに依存しない独立実装）がチャンネルに流れたNOTICE/PRIVMSGを全部ログに出す。IRCに実際に何が送られたかは`docker compose logs observer`で確認する（Slackの着信はClaudeからは見えないため、通知内容の確認はこちらで行う）。更新は`docker compose up -d --build`（`dev/shadow`で実行）。
+- 実地震での動作確認（shadow）は`dev/shadow/`のdocker composeで行う（2026-11-14の本番切替後、ユーザー指示で`docker compose down`済み、`irc-eew:shadow`/`eew-view:shadow`イメージも削除済み。`dev/shadow/data/`と設定は残してある。再開するときは本番とWebSocket接続が競合しないよう注意）（ユーザー要望: IRCも含めて試す）。作業ツリーからビルドしたnotifier（`irc-eew-shadow-notifier-1`）が本物のDMDATAに接続し、同じcompose内のErgo IRCサーバ（`irc-eew-shadow-ergo-1`、`#eew`/`#eew-limited`）とconfig.yamlに書いたSlack（テスト用チャンネルのみ）へ通知する。Ergoは`127.0.0.1:6667`に公開しているので、この開発機のIRCクライアントから接続して通知を目視できる（他ホストからは不可）。`dev/shadow/config.yaml`（秘密情報）と`dev/shadow/data/`（受信生データ）はgitignore。DMDATAの`app-name`は`irc-eew-shadow`で、他インスタンスと分けている。Ergoは履歴を持たないので、常時joinしている監視クライアント`irc-eew-shadow-observer-1`（`dev/shadow/irc_observer.py`、goirc/internal/ircに依存しない独立実装）がチャンネルに流れたNOTICE/PRIVMSGを全部ログに出す。IRCに実際に何が送られたかは`docker compose logs observer`で確認する（Slackの着信はClaudeからは見えないため、通知内容の確認はこちらで行う）。更新は`docker compose up -d --build`（`dev/shadow`で実行）。
