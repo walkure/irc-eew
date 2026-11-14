@@ -49,6 +49,17 @@ WNI時代のものを同じ一覧に並べて表示します（読み取り専�
 |`EEW_VIEWER`|`eew-show`|詳細表示のルート名|
 |`EEW_LISTEN_ADDR`|`:8080`|待ち受けアドレス|
 
+### 年ごとのzipにまとめる
+
+電文は1件ずつのファイルなので、ディスクのブロック単位で場所を取ります。年が明けたら前年の分を
+`eew-pack`で`<logdir>/<年>.zip`にまとめられます。ビューアはフォルダとzipの両方を読むので、
+まとめたあとも表示は変わりません。`eew-pack`は元のファイルを消さないので、zipを確認してから
+手で消してください。`eew-pack`はeew-viewのイメージに入っています。
+
+`docker run -it --rm --mount type=bind,source=/a/path/to/eewlog,target=/eewlog --entrypoint /usr/src/eew-view/eew-pack ghcr.io/walkure/eew-view:latest -dir /eewlog -year 2025`
+
+まだ電文が増える年の旧WNI電文だけをまとめるときは`-legacy-only`を付けます。
+
 ## ちぅい
 
 DMDATA.JPのWebSocketサーバは月1回程度メンテナンスで再起動するので、そのたびに再接続します。

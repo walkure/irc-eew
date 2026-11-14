@@ -13,10 +13,12 @@
 ```text
 cmd/eew-notifier/   本体デーモン(DMDATA受信 → Slack/IRC通知)
 cmd/eew-view/       EEWアーカイブの閲覧用Webビューア(元HTML/index.pl+eew-show.pl)
+cmd/eew-pack/       アーカイブの1年分を<logdir>/<YYYY>.zipにまとめる（eew-viewイメージに同梱、後述「保存サイズ」）
 cmd/eew-replay/     開発/検証用: 保存済み電文（DMDATAの*.json・旧WNI電文の両方）を本番と同じ経路で整形→(任意で)Slack送信
 
 internal/dmdata/    DMDATA.JP API v2クライアント（Socket Start/Close + WebSocket v2受信）
 internal/dmdatasim/ テスト用のフェイクDMDATAサーバ（チケット使い捨て・ping/pong・接続枠を再現）
+internal/eewzip/    年ごとのアーカイブzipの名前規約とPack（eew-pack/eew-viewが共有）
 internal/rawarchive/ DMDATAのdataメッセージを受信したまま保存（旧WNIアーカイブと同じYYYY/MM/DDツリー、ファイル名で区別。レイアウトはeew-viewと共有契約）
 internal/eew/       配信元に依存しないEEW報モデル、VXSE45 XMLパーサ（値の正規化込み）、地震ID単位の上限付き記憶（RecentSet/OriginCache）
 internal/decoder/   旧コード電文(WNI時代)のEEWデコーダ（tables_gen.goはPerl版Decoder.pmから生成した対照表）
@@ -26,7 +28,7 @@ internal/notify/    Slack hookの「all/limited」振り分け判定
 internal/irc/       IRC通知（github.com/fluffle/goirc/clientの薄いアダプタ、詳細は後述）
 internal/config/    config.yaml読み込み
 internal/app/       上記を束ねてデーモンのメインループを構成
-internal/eewview/   Webビューア本体（一覧/詳細/生データダンプ）
+internal/eewview/   Webビューア本体（一覧/詳細。store.goでフォルダと年zipを1つの一覧にまとめる）
 ```
 
 ## ビルド・テスト
@@ -148,7 +150,7 @@ WNIのFastCaster配信が終了したため、WNI関連コード（`internal/wni
   - 防御の二段目として、IRC/Slackへの送信直前に完成文面全体からCR/LFを除去する。IRCは1メッセージ＝CR-LF終端の1行で、本文(trailing)にNUL/CR/LFを含められない（RFC 1459/2812 §2.3、RFC 1459 §8は「CRかLFが単独で現れても行末とみなす実装がある」と注記）。goirc v1.3.5の`Conn.Raw`はコマンド注入防止のため`cutNewLines`で**最初のCR/LF以降を黙って切り捨てる**ので、改行が混入すると注入にはならないが、震央名以降（深さ・M・震度）が通知から無言で欠落する。
 - VXSE45の一次資料は気象庁「地震火山関連 解説資料」（xml.kishou.go.jp の技術資料ページの解説資料セット内、緊急地震速報の内容部はⅡ.21節）。最終報=`Body/NextAdvisory`の出現（`Epicenter@rank2="9"`は「震源・Mの精度が最終報相当」で最終報の目印ではない、公式サンプルでも最終報前から9になる）、取消=`Head/InfoType`が「取消」（本文は`Text`のみ・`Serial`は直前と同じ番号のまま＝EventID+Serialは一意でない・最終報を経ずに取消で終わることがある）。
 - Slack/IRCへ流す文面は既存フォーマット（`internal/eewmsg`）を踏襲する（ユーザー要望）。XMLから再現できない差異が出る場合は個別に報告して判断を仰ぐ。
-- 段階: (1)受信+生データ保存（2026-11-12完了、実受信で確認） / (2)VXSE45解析+通知（完了、実地震2件で確認） / (3)eew-view対応（完了。保存形式の縮小は後述「保存サイズ」で保留中） / (4)docs・Docker・本番切替（2026-11-14に`v2.0.0`で本番切替済み。本番は`kamo-river/agano-k8s-applications`の`namespaces/slackbot/shared`、`app-name: irc-eew`。WebSocketは1接続しか張れない契約なので、shadowを動かすときは本番と同時に動かせない＝shadowのnotifierは止めてある）。
+- 段階: (1)受信+生データ保存（2026-11-12完了、実受信で確認） / (2)VXSE45解析+通知（完了、実地震2件で確認） / (3)eew-view対応（完了。保存形式の縮小は後述「保存サイズ」） / (4)docs・Docker・本番切替（2026-11-14に`v2.0.0`で本番切替済み。本番は`kamo-river/agano-k8s-applications`の`namespaces/slackbot/shared`、`app-name: irc-eew`。WebSocketは1接続しか張れない契約なので、shadowを動かすときは本番と同時に動かせない＝shadowのnotifierは止めてある）。
 - **通知文面（ユーザー決定）**: 旧WNIコード電文由来の形式を踏襲する。`{発表時刻} 第{Serial}報[(最終)][(訂正)] ({発生時刻}発生)震央:<地図URL|N{緯度}/E{経度}>({震央名})深さ{D} 最大:M{M} 震度{I}`、取消は`{発表時刻} 第{Serial}報 ({発生時刻}発生) 取り消されました`、タイトルは「高度利用者向け緊急地震速報」のまま。対応と決定事項:
   - 発表時刻=`ReportDateTime`、報番号=`Serial`（取消報もXMLの値そのまま。旧電文と違い取消で番号は増えない）、発生時刻=`OriginTime`（旧電文2行目「地震発生時刻もしくは地震検知時刻」と同義、コード電文解説資料で確認）、震央名=`Hypocenter/Area/Name`（`ReduceName`ではない）。
   - 発生時刻が無い報（最大予測震度のみ等）は「(…発生)」部分ごと出さない。取消報は同じEventIDの直前報の`OriginTime`を使う（`eew.OriginCache`、地震IDごと・直近64地震分。複数地震の速報が同時に来るため）。覚えていなければ出さない。
@@ -159,11 +161,14 @@ WNIのFastCaster配信が終了したため、WNI関連コード（`internal/wni
 - 起動時と接続数上限(409)時に、同じ`app-name`で残っている`open`/`waiting`ソケットをSocket List→Socket Closeで掃除する（前回プロセスが異常終了した場合の枠解放）。**同じAPIキーでshadowと本番を同時に動かすときは`app-name`を必ず分けること**（同名だと互いの接続を切る）。APIキーに必要な権限: `socket.start`・`socket.list`・`socket.close`・`eew.get.forecast`。
 - エラー処理（`internal/dmdata/errors.go`の`Classify`）: リトライで直らないもの（Socket Startの400/401/402/403、WSの4400/4807、要求した区分・種別が許可されない）は**プロセスを終了コード1で終了**（「未課金ならエラーで終了すべき」というユーザー要望に基づく。契約切れ等を再起動ループとして可視化する）。それ以外（409/429/5xx/通信エラー、WSの4404/4409/4640/4641/4891/未知コード、および4808＝コントロールパネル等からの明示的切断〔ユーザー判断で一時的扱い〕）はバックオフで再接続。4503（サーバー再起動）はログレベルがINFOになるだけで、待ち時間は「30秒以上安定していたら1秒に戻す」通常規則に任せる（接続直後に4503を返し続ける障害で1秒間隔の再接続を繰り返さないため）。
 - 生データは`data`メッセージ全体を受信したまま保存する方針（ユーザー承認済み）。閲覧用の派生形式（CBOR等）が要れば段階3で検討。
-- **保存サイズ（次の課題、作戦のみ・未着手）**: 2026-11-14に実測。
-  - 本番の旧アーカイブ（agano `/var/lib/eewlog/data`、local PV、PVCは2Gi、ブロック4KB）: 約66,000件・中身13MB（1件約200B）だが、ディスク上は275MB。年4,000〜6,000件。
-  - DMDATAの保存ファイルは1件2.2〜2.4KB（本文XMLは元からgzip+base64で約1.3KB、外側JSONが約1KB）。予測地域の多い大地震でも約4KB（気象庁サンプル20KBのXMLから推定）。中身は旧電文の約10倍だが、ほとんどが4KBに収まるのでディスク上は旧電文と同じ1件4KB、年20MB程度。1件ずつgzipしてもブロック単位なのでディスク上は減らない。
-  - 減らすなら: A.古い日を`YYYY/MM/DD.tar.xz`のように1日1ファイルへまとめ、中身は受信バイト列のまま（shadow実データで1日4〜5件が16〜20KB→約5〜6KB）。notifierとは別のCronJob等で行い、受信中の日には触らない。eew-viewはフォルダとまとめたファイルの両方を読む。B.本文をXMLに戻して1日分まとめて圧縮（約1.1KB、同じ地震の続報のXMLがほぼ同一のため）。ただし元のgzipバイト列を再現できず「受信バイト列のまま保存」の決定を覆すので、方針変更を伴う場合のみ。
-  - 推奨: 当面は現状維持で本番1〜2か月の実件数・サイズを確認（DMDATAの配信件数がWNI並みかは未確認）。必要になったらA。
+- **保存サイズ（年ごとのzip、2026-11-14実装・本番未適用）**:
+  - 実測: 本番の旧アーカイブ（agano `/var/lib/eewlog/data`、local PV、PVCは2Gi、ブロック4KB）は約66,000件・中身13MBだがディスク上は275MB（1件4KBブロックを占有）。DMDATAの保存ファイルは1件2.2〜2.4KB（大地震でも約4KB）なので、ディスク上はどちらも1件4KB。
+  - 方式（ユーザー決定）: 締まった年を`<logdir>/<YYYY>.zip`（エントリ名`YYYY/MM/DD/<元のファイル名>`、中身は元ファイルのバイト列そのまま＝「受信バイト列のまま保存」を維持）にまとめる。tar.gz等はファイル単位のランダムアクセスができないため不採用。DMDATAも同じ運用（年が明けたら前年をまとめる）。旧電文はもう増えないので、2026年は`-legacy-only`で旧電文だけ先にまとめられる。
+  - `eew-pack`（`internal/eewzip.Pack`）: 既存zipがあればマージ（同名でバイト列が違うとエラーで既存zipを変えない）、一時ファイルに書いて全件をバイト単位で照合してからrenameで置き換え、権限は0644、元ファイルは消さない（確認後に手で消す）。`YYYY/MM/DD/<file>`の外のファイルは入れずに一覧表示する。
+  - eew-view: フォルダとzipを1つの一覧にまとめる（同じ名前が両方にあればフォルダ側を読む）。年のzipの目録は初めてその年を見たときに読み込み、zipのサイズ/更新時刻が変われば読み直す。zipは開きっぱなしにせず、目録のオフセットから直接読んでCRC照合する（Windowsでは開いているファイルを置き換えられないため、また作り直し中も表示できるように）。
+  - 実測（2026-11-14、本番の旧アーカイブ全年をaganoでまとめて手元で計測）: 16年分65,900件→zip合計20MB（ディスク上275MB）。全一覧4,340ページ＋詳細8,318件を巡回したときのeew-viewのprivateメモリは、フォルダのまま54MB、zipのみ67MB（全年の目録がGoヒープで6.7MB＝1件約100B、残りはGCの余裕分）。応答速度は同等。
+  - 本番アーカイブの非正規ファイル（まとめずに残す、扱いはユーザー判断待ち）: `2022/12/temp/{06,07,09,10}/`の49件（正規の場所にも同名があり、うち4件は中身が異なる。2022年12月の作業跡と思われる）、直下の空ファイル`test`。報番号のない`2011/03/13/20110313082415`・`2011/03/14/20110314134555`はzipには入るがeew-viewの一覧には出ない（従来どおり）。
+  - 保存ファイルの権限: `rawarchive.Save`が`os.CreateTemp`の0600のまま置いていたため、notifierと別ユーザー（aganoのssh利用者等）から読めなかった。0644に修正（ユーザー決定。umask任せではなく固定）。v2.0.0で保存された分は本番で手作業で`chmod 644`済み。
 
 ## Windows開発環境での注意点
 
