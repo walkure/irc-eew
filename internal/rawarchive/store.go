@@ -105,8 +105,11 @@ func (s *Store) Save(id string, raw []byte, eventID, serial string) (path string
 		return "", false, fmt.Errorf("rawarchive: %w", err)
 	}
 	_, werr := tmp.Write(raw)
+	// CreateTemp makes it 0600; the archive is not secret, and it is read
+	// by other users too (the packer, an operator on the host).
+	merr := tmp.Chmod(0o644)
 	cerr := tmp.Close()
-	if err := errors.Join(werr, cerr); err != nil {
+	if err := errors.Join(werr, merr, cerr); err != nil {
 		os.Remove(tmp.Name())
 		return "", false, fmt.Errorf("rawarchive: writing %s: %w", path, err)
 	}

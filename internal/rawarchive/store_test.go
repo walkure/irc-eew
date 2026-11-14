@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -89,5 +90,25 @@ func TestSave_DatedByEventIDWhenKnown(t *testing.T) {
 		if filepath.Dir(p) != filepath.Join(s.dir, "2026", "11", "12") {
 			t.Errorf("%v: fell back to %q", c, p)
 		}
+	}
+}
+
+// Saved files are world-readable like the legacy archive (CreateTemp's
+// 0600 would hide them from anyone but the notifier's user).
+func TestSave_FileIsWorldReadable(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Unix permission bits")
+	}
+	s := fixedStore(t)
+	path, _, err := s.Save("abc", []byte("x"), "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fi, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := fi.Mode().Perm(); got != 0o644 {
+		t.Errorf("mode = %o, want 644", got)
 	}
 }
