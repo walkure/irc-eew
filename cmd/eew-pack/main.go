@@ -13,6 +13,9 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	// The image is FROM scratch (no zoneinfo): embed it so TZ=Asia/Tokyo
+	// applies to the entries' local modification times, as on the host.
+	_ "time/tzdata"
 
 	"github.com/walkure/irc-eew/internal/eewzip"
 )
