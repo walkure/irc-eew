@@ -8,6 +8,10 @@
 #   only reads local files and serves HTTP.
 # - EXPOSE 8080: this binary listens for inbound connections, unlike the
 #   notifier.
+# The image also carries cmd/eew-pack (packs a closed year of the archive
+# into <logdir>/<YYYY>.zip), so a one-off Job/CronJob can run it from this
+# image with the same UID as the notifier that wrote the files:
+# command: ["/usr/src/eew-view/eew-pack", "-dir", "/eewlog", "-year", "2025"]
 
 FROM golang:1.25-alpine AS builder
 WORKDIR /src
@@ -16,11 +20,13 @@ RUN go mod download
 COPY cmd ./cmd
 COPY internal ./internal
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/eew-view ./cmd/eew-view
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/eew-pack ./cmd/eew-pack
 
 FROM scratch
 # Left root-owned (no --chown) so the runtime user (1000:1000, below) can
 # execute it but not modify it.
 COPY --from=builder /out/eew-view /usr/src/eew-view/eew-view
+COPY --from=builder /out/eew-pack /usr/src/eew-view/eew-pack
 
 ENV TZ=Asia/Tokyo
 USER 1000:1000
