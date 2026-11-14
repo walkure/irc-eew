@@ -13,7 +13,7 @@
 #   raw UID:GID (1000:1000); nothing in this program looks up its own
 #   username, so no /etc/passwd entry is needed.
 
-FROM golang:1.25-alpine AS builder
+FROM golang:1.26-alpine AS builder
 RUN apk add --no-cache ca-certificates
 WORKDIR /src
 COPY go.mod go.sum ./

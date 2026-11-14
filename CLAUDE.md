@@ -49,8 +49,8 @@ go test ./...
   Dockerが必要（GitHub ActionsのCIジョブ`irctest`ではubuntu-latest標準搭載のDockerをそのまま使っている、追加セットアップ不要）。
   この開発機（Windows + Docker Desktop）ではtestcontainersの後片付け用コンテナ（ryuk）が起動せず`reaper: … "Started" matched 0 times`で全テストが失敗するので、`TESTCONTAINERS_RYUK_DISABLED=true go test -tags irctest ./internal/irc/...`で実行する（コード側の問題ではない）。失敗時に未起動のergoコンテナ（`Created`状態）が残ることがあるので、その場合は作成日時を確認して削除する。
 - Windowsでの`go test -race`はこの環境ではツールチェイン起因で失敗することがある（`0xc0000139`終了コード）。コード側の問題ではなくローカル環境の制約として認識しておくこと。
-- この開発機（Windows）では、テストを多数並列に走らせたとき（`go test ./...`やテストバイナリの並列実行）に、ループバック上の**新しいWebSocket接続の最初の書き込みが2〜13秒止まる**ことがあり、`internal/dmdata`の5秒待ちのテスト（例: `TestRunSession_NonClosingServerErrorKeepsSession`）がまれに落ちる。同じテストをLinuxコンテナ（golang:1.25-alpine、CIと同等）で8並列×40回流すと失敗0・100ms超の書き込み0（2026-11-13に計測）。コード起因ではなくこの環境（セキュリティソフトの通信検査等と推測）の制約なので、テストの待ち時間を延ばして誤魔化さないこと（ユーザー方針）。疑わしいときはLinuxコンテナで再現を確認する:
-  `MSYS_NO_PATHCONV=1 docker run --rm -v "F:\Repos\irc-eew:/src:ro" -w /src -e GOFLAGS=-buildvcs=false golang:1.25-alpine go test ./...`
+- この開発機（Windows）では、テストを多数並列に走らせたとき（`go test ./...`やテストバイナリの並列実行）に、ループバック上の**新しいWebSocket接続の最初の書き込みが2〜13秒止まる**ことがあり、`internal/dmdata`の5秒待ちのテスト（例: `TestRunSession_NonClosingServerErrorKeepsSession`）がまれに落ちる。同じテストをLinuxコンテナ（golang:1.26-alpine、CIと同等）で8並列×40回流すと失敗0・100ms超の書き込み0（2026-11-13に計測）。コード起因ではなくこの環境（セキュリティソフトの通信検査等と推測）の制約なので、テストの待ち時間を延ばして誤魔化さないこと（ユーザー方針）。疑わしいときはLinuxコンテナで再現を確認する:
+  `MSYS_NO_PATHCONV=1 docker run --rm -v "F:\Repos\irc-eew:/src:ro" -w /src -e GOFLAGS=-buildvcs=false golang:1.26-alpine go test ./...`
 
 ## 設定ファイル (config.yaml)
 
